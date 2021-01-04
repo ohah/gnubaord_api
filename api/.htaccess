@@ -1,5 +1,5 @@
 <IfModule mod_rewrite.c>
   RewriteEngine On
-  RewriteBase /gnu_api/
+  RewriteBase /api/
   RewriteRule ^.*$ index.php [L,QSA]
 </IfModule>
