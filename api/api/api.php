@@ -16,19 +16,27 @@ function api_g5_path() {
       $host = preg_replace('/:[0-9]+$/', '', $host); 
   $host = preg_replace("/[\<\>\'\"\\\'\\\"\%\=\(\)\/\^\*]/", '', $host); 
   $result['url'] = $http.$host.$port.$user.$root; 
+  $result['api'] = $result['path'];
   $result['url'] = str_replace('/api/api', '', $result['url']);
   $result['path'] = str_replace('/api/api', '', $result['path']);
   return $result;
 }
 $g5_path = api_g5_path();
 require "../config.php";
+define('API_PATH', $g5_path['api']);
+define('API_LIB_PATH', API_PATH.'/lib/');
 unset($g5_path);
-require "../data/dbconfig.php";
+require G5_PATH."/data/dbconfig.php";
 require 'jwt/autoload.php';
 use Firebase\JWT\JWT;
+require G5_LIB_PATH.'/cache.lib.php';
+$g5_object = new G5_object_cache();
+require API_LIB_PATH.'/pbkdf2.compat.php'; //그누보드 password 처리;
+require API_LIB_PATH.'/hook.lib.php';    // hook 함수 파일
 require 'lib/common.lib.php';
-require '../lib/uri.lib.php';
+require 'common.php';
 class Gnuboard_api extends commonlib {
+  use common;
   /*
   alert 메시지
   */
@@ -42,7 +50,6 @@ class Gnuboard_api extends commonlib {
     jti: 고유키
   */
   public function Login($mb_id, $mb_password) {
-    require 'lib/pbkdf2.compat.php'; //그누보드 password 처리;
     global $g5;
     if (!$mb_id || !$mb_password) $this->msg('회원아이디나 비밀번호가 공백이면 안됩니다.');
     $mb = $this->sql_fetch("SELECT * FROM {$g5['member_table']} WHERE mb_id = ?",[$mb_id]);
@@ -86,11 +93,6 @@ class Gnuboard_api extends commonlib {
     $res = $this->sql_query("SELECT * FROM {$g5['board_table']}");
     return json_encode($res, JSON_UNESCAPED_UNICODE);
   }
-  public function get_config() {
-    global $g5;
-    $res = $this->sql_fetch("SELECT * FROM {$g5['config_table']}");
-    return json_encode($res, JSON_UNESCAPED_UNICODE);
-  }
   public function get_content($co_id) {
     global $g5;
     if($co_id) $res = $this->sql_query("SELECT * FROM {$g5['content_table']} WHERE co_id = ?", [$co_id]);
@@ -108,15 +110,9 @@ class Gnuboard_api extends commonlib {
     $res = $this->sql_query("SELECT * FROM {$g5['faq_master_table']} WHERE fm_id = ?", [$fm_id]);
     return json_encode($res, JSON_UNESCAPED_UNICODE);
   }
-  public function get_group() {
+  public function get_members() {
     global $g5;
-    $res = $this->sql_query("SELECT * FROM {$g5['group_table']}");
-    return json_encode($res, JSON_UNESCAPED_UNICODE);
-  }
-  public function get_member($mb_id) {
-    global $g5;
-    if($mb_id) $res = $this->sql_fetch("SELECT * FROM {$g5['member_table']} WHERE mb_id = ?", [$mb_id]);
-    else $res = $this->sql_fetch("SELECT * FROM {$g5['member_table']}");
+    $res = $this->sql_fetch("SELECT * FROM {$g5['member_table']}");
     return json_encode($this->unset_data($res), JSON_UNESCAPED_UNICODE);
   }
   public function get_point($mb_id) {
@@ -128,21 +124,6 @@ class Gnuboard_api extends commonlib {
     global $g5;
     $res = $this->sql_query("SELECT * FROM {$g5['scrap_table']} WHERE mb_id = ?", [$mb_id]);
     return json_encode($this->unset_data($res), JSON_UNESCAPED_UNICODE);
-  }
-  public function get_menu() {
-    global $g5;
-    $res = $this->sql_query("SELECT * FROM {$g5['menu_table']} WHERE length(me_code) = ? ORDER By me_order, me_id", ['2']);
-    for($i=0;$i<count($res);$i++) {
-      $res[$i]['ori_me_link'] = $res[$i]['me_link'];
-      $res[$i]['me_link'] = short_url_clean($res[$i]['me_link']);
-      $row2 = $this->sql_query("SELECT * FROM {$g5['menu_table']} WHERE length(me_code) = ? AND substring(me_code, 1,2) = ? ORDER By me_order, me_id", ['4', $res[$i]['me_code']]);
-      for($k=0;$k<count($row2);$k++) {
-        $row2[$i]['ori_me_link'] = $row2[$i]['me_link'];
-        $row2[$i]['me_link'] = short_url_clean($row2[$i]['me_link']);
-        $res[$i]['sub'][$k] = $row2[$i];
-      }
-    }
-    return json_encode($res, JSON_UNESCAPED_UNICODE);
   }
   public function get_board_good($bo_table, $wr_id) {
     global $g5;
@@ -212,4 +193,3 @@ class Gnuboard_api extends commonlib {
 /*
   
 */
-?>

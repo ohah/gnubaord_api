@@ -19,7 +19,7 @@ $router->match('GET|POST', '/Auth/{mb_id}', function($mb_id) use ($api) {
   $api->Login($mb_id, $mb_password);
 });
 $router->match('GET', '/configs', function() use ($api){
-  echo $api->get_config();
+  echo json_encode($api->get_config(), JSON_UNESCAPED_UNICODE);
 });
 $router->mount('/contents', function() use ($router, $api) {
   $router->get('/', function() use ($api) {
@@ -41,10 +41,10 @@ $router->match('GET', '/faqsgroup/{fm_id}', function() use ($api){
   echo $api->get_faq_group($fa_id);
 });
 $router->match('GET', '/groups', function() use ($api){
-  echo $api->get_group($fa_id);
+  echo json_encode($api->get_group($fa_id), JSON_UNESCAPED_UNICODE);
 });
 $router->match('GET', '/members', function() use ($api){
-  echo $api->get_member(null);
+  echo $api->get_members();
 });
 $router->mount('/member', function() use ($router, $api) {
   $router->get('/{mb_id}/scraps', function($mb_id) use ($api) {
@@ -54,7 +54,7 @@ $router->mount('/member', function() use ($router, $api) {
     echo $api->get_point($mb_id);
   });
   $router->get('/{mb_id}', function($mb_id) use ($api) {
-    echo $api->get_member($mb_id);
+    echo json_encode($api->get_member($mb_id), JSON_UNESCAPED_UNICODE);
   });
 });
 $router->match('GET', '/boards', function() use ($api){
@@ -68,50 +68,60 @@ $router->mount('/board', function() use ($router, $api) {
     echo '지원예정';
   });
   $router->get('/{bo_table}/{wr_id}/good', function($bo_table, $wr_id) use ($api) {
-    $api->board_permission($bo_table, $wr_id);
+    $api->board_chk($bo_table, $wr_id);
+    echo $api->get_board_good($bo_table, $wr_id);
+  });
+  $router->PUT('/{bo_table}/{wr_id}/good', function($bo_table, $wr_id) use ($api) {
+    $api->board_chk($bo_table, $wr_id);
     echo $api->get_board_good($bo_table, $wr_id);
   });
   $router->get('/{bo_table}/{wr_id}/files', function($bo_table, $wr_id) use ($api) {
-    $api->board_permission($bo_table, $wr_id);
+    $api->board_chk($bo_table, $wr_id);
     echo $api->get_board_file($bo_table, $wr_id);
   });
   $router->get('/{bo_table}/{wr_id}/comments', function($bo_table, $wr_id) use ($api) {
-    $api->board_permission($bo_table, $wr_id);
+    $api->board_chk($bo_table, $wr_id);
     echo $api->get_view_cmt_list($bo_table, $wr_id);
   });
   $router->get('/{bo_table}/{wr_id}/comment/{comment_id}/good', function($bo_table, $wr_id, $comment_id) use ($api) {
-    $api->board_permission($bo_table, $wr_id);
+    $api->board_chk($bo_table, $wr_id);
     echo $api->get_board_good_cmt($bo_table, $wr_id, $comment_id);
   });
   $router->get('/{bo_table}/{wr_id}/comment/{comment_id}/files', function($bo_table, $wr_id, $comment_id) use ($api) {
-    $api->board_permission($bo_table, $wr_id);
+    $api->board_chk($bo_table, $wr_id);
     echo $api->get_board_file_cmt($mb_id);
   });
   $router->get('/{bo_table}/{wr_id}/comment/{comment_id}', function($bo_table, $wr_id, $comment_id) use ($api) {
-    $api->board_permission($bo_table, $wr_id);
+    $api->board_chk($bo_table, $wr_id);
     echo $api->get_view_cmt($mb_id);
   });
   $router->get('/{bo_table}/{wr_id}', function($bo_table, $wr_id) use ($api) {
-    $api->board_permission($bo_table, $wr_id);
+    $api->board_chk($bo_table, $wr_id);
     echo $api->get_view($bo_table, $wr_id);
   });
   $router->get('/{bo_table}', function($bo_table) use ($api) {
-    $api->board_permission($bo_table);
+    $api->board_chk($bo_table);
     echo $api->get_list($bo_table);
   });
 });
 $router->mount('/write', function() use ($router, $api) {
-  $router->post('/{bo_table}/{wr_id}', function($bo_table, $wr_id) use ($api) {
-    $api->board_permission($bo_table);
-    //echo $api->g($bo_table);
+  $router->match('PUT|POST', '/{bo_table}/{wr_id}', function($bo_table, $wr_id) use ($api) {
+    $api->board_chk($bo_table);
+    echo $api->write_update($bo_table, $wr_id);
   });
-  $router->post('/{bo_table}', function($bo_table) use ($api) {
-    $api->board_permission($bo_table);
+  $router->match('PUT|POST', '/{bo_table}', function($bo_table) use ($api) {
+    $api->board_chk($bo_table);
     echo $api->write_update($bo_table);
+  });
+  $router->match('GET', '/{bo_table}/{wr_id}/{$w}', function($bo_table, $wr_id, $w) use ($api) {
+    echo $api->write($bo_table, $wr_id, $w);
+  });
+  $router->match('GET', '/{bo_table}', function($bo_table) use ($api) {
+    echo $api->write($bo_table);
   });
 });
 $router->match('GET', '/menus', function() use ($api){
-  echo $api->get_menu();
+  echo json_encode($api->get_menu_db(), JSON_UNESCAPED_UNICODE);
 });
 $router->match('GET', '/autosave', function() use ($api){
   echo $api->get_autosave();
