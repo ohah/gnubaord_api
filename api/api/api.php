@@ -150,25 +150,12 @@ class Gnuboard_api extends commonlib {
     $res = $this->sql_query("SELECT * FROM {$g5['board_new_table']}");
     return json_encode($this->unset_data($res), JSON_UNESCAPED_UNICODE);
   }
-  public function get_view($bo_table, $wr_id) {
-    global $g5;
-    $write_table = $g5['write_prefix'].$bo_table;
-    $res = $this->sql_query("SELECT * FROM {$write_table} WHERE wr_id = ?", [$wr_id]);
-    return json_encode($this->unset_data($res), JSON_UNESCAPED_UNICODE);
-  }
   public function get_autosave() {
     global $g5;
     if($this->is_guest) {
-      echo $this->msg('비회원은 접근할 수 없습니다.');
-      exit;
+      $this->alert('비회원은 접근할 수 없습니다.');
     };
     $res = $this->sql_query("SELECT * FROM {$g5['autosave_table']} WHERE wr_id = ?", [$this->member['mb_id']]);
-    return json_encode($this->unset_data($res), JSON_UNESCAPED_UNICODE);
-  }
-  public function get_list($bo_table) {
-    global $g5;
-    $write_table = $g5['write_prefix'].$bo_table;
-    $res = $this->sql_query("SELECT * FROM {$write_table}");
     return json_encode($this->unset_data($res), JSON_UNESCAPED_UNICODE);
   }
   public function get_view_cmt_list($bo_table, $wr_id) {

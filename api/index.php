@@ -71,7 +71,7 @@ $router->mount('/board', function() use ($router, $api) {
     $api->board_chk($bo_table, $wr_id);
     echo $api->get_board_good($bo_table, $wr_id);
   });
-  $router->PUT('/{bo_table}/{wr_id}/good', function($bo_table, $wr_id) use ($api) {
+  $router->get('/{bo_table}/{wr_id}/good', function($bo_table, $wr_id) use ($api) {
     $api->board_chk($bo_table, $wr_id);
     echo $api->get_board_good($bo_table, $wr_id);
   });
@@ -101,7 +101,7 @@ $router->mount('/board', function() use ($router, $api) {
   });
   $router->get('/{bo_table}', function($bo_table) use ($api) {
     $api->board_chk($bo_table);
-    echo $api->get_list($bo_table);
+    echo $api->get_bbs_list($bo_table);
   });
 });
 $router->mount('/write', function() use ($router, $api) {
@@ -114,10 +114,10 @@ $router->mount('/write', function() use ($router, $api) {
     echo $api->write_update($bo_table);
   });
   $router->match('GET', '/{bo_table}/{wr_id}/{$w}', function($bo_table, $wr_id, $w) use ($api) {
-    echo $api->write($bo_table, $wr_id, $w);
+    $api->write($bo_table, $wr_id, $w);
   });
   $router->match('GET', '/{bo_table}', function($bo_table) use ($api) {
-    echo $api->write($bo_table);
+    $api->write($bo_table);
   });
 });
 $router->match('GET', '/menus', function() use ($api){

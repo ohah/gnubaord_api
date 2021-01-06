@@ -35,6 +35,8 @@ require 'jwt/autoload.php';
 require API_PATH.'/bbs/board.php';
 require API_PATH.'/bbs/write_update.php';
 require API_PATH.'/bbs/write.php';
+require API_PATH.'/bbs/view.php';
+require API_PATH.'/bbs/list.php';
 require API_PATH.'/plugin/kcaptcha/kcaptcha.lib.php';
 require API_PATH.'/lib/uri.lib.php';
 require API_PATH.'/lib/get_data.lib.php';
@@ -44,6 +46,8 @@ class Commonlib {
   use board;
   use write;
   use write_update;
+  use view;
+  use bbs_list;
   use KCAPTCHA;
   use urllib;
   use naver_syndilib;
@@ -109,7 +113,7 @@ class Commonlib {
     return json_encode(array('msg'=>$msg), JSON_UNESCAPED_UNICODE);
   }
   public function alert($msg, $url = '') {
-    echo json_encode(array('msg'=>$msg, 'url', $url), JSON_UNESCAPED_UNICODE);
+    echo json_encode(array('msg'=>$msg, 'url'=> $url), JSON_UNESCAPED_UNICODE);
     exit;
   }
 
@@ -234,8 +238,18 @@ class Commonlib {
     }
     return str_replace($source, $target, $str);
   }
+
+  // url에 http:// 를 붙인다
+  public function set_http($url) {
+    if (!trim($url)) return;
+
+    if (!preg_match("/^(http|https|ftp|telnet|news|mms)\:\/\//i", $url))
+      $url = "http://" . $url;
+
+    return $url;
+  }
+
   // 파일의 용량을 구한다.
-  //function get_filesize($file)
   public function get_filesize($size) {
     if ($size >= 1048576) {
       $size = number_format($size/1048576, 1) . "M";
@@ -281,6 +295,360 @@ class Commonlib {
     return $file;
   }
 
+  // 검색 구문을 얻는다.
+  public function get_sql_search($search_ca_name, $search_field, $search_text, $search_operator='and') {
+    global $g5;
+
+    $str = "";
+    if ($search_ca_name)
+      $str = " ca_name = '$search_ca_name' ";
+
+    $search_text = strip_tags(($search_text));
+    $search_text = trim(stripslashes($search_text));
+
+    if (!$search_text && $search_text !== '0') {
+      if ($search_ca_name) {
+        return $str;
+      } else {
+        return '0';
+      }
+    }
+
+    if ($str)
+      $str .= " and ";
+
+    // 쿼리의 속도를 높이기 위하여 ( ) 는 최소화 한다.
+    $op1 = "";
+
+    // 검색어를 구분자로 나눈다. 여기서는 공백
+    $s = array();
+    $s = explode(" ", $search_text);
+
+    // 검색필드를 구분자로 나눈다. 여기서는 +
+    $tmp = array();
+    $tmp = explode(",", trim($search_field));
+    $field = explode("||", $tmp[0]);
+    $not_comment = "";
+    if (!empty($tmp[1]))
+      $not_comment = $tmp[1];
+
+    $str .= "(";
+    for ($i=0; $i<count($s); $i++) {
+      // 검색어
+      $search_str = trim($s[$i]);
+      if ($search_str == "") continue;
+
+      // 인기검색어
+      $this->insert_popular($field, $search_str);
+
+      $str .= $op1;
+      $str .= "(";
+
+      $op2 = "";
+      for ($k=0; $k<count($field); $k++) { // 필드의 수만큼 다중 필드 검색 가능 (필드1+필드2...)
+        // SQL Injection 방지
+        // 필드값에 a-z A-Z 0-9 _ , | 이외의 값이 있다면 검색필드를 wr_subject 로 설정한다.
+        $field[$k] = preg_match("/^[\w\,\|]+$/", $field[$k]) ? strtolower($field[$k]) : "wr_subject";
+
+        $str .= $op2;
+        switch ($field[$k]) {
+          case "mb_id" :
+          case "wr_name" :
+            $str .= " $field[$k] = '$s[$i]' ";
+            break;
+          case "wr_hit" :
+          case "wr_good" :
+          case "wr_nogood" :
+            $str .= " $field[$k] >= '$s[$i]' ";
+            break;
+          // 번호는 해당 검색어에 -1 을 곱함
+          case "wr_num" :
+            $str .= "$field[$k] = ".((-1)*$s[$i]);
+            break;
+          case "wr_ip" :
+          case "wr_password" :
+            $str .= "1=0"; // 항상 거짓
+            break;
+          // LIKE 보다 INSTR 속도가 빠름
+          default :
+            if (preg_match("/[a-zA-Z]/", $search_str))
+              $str .= "INSTR(LOWER($field[$k]), LOWER('$search_str'))";
+            else
+              $str .= "INSTR($field[$k], '$search_str')";
+            break;
+        }
+          $op2 = " or ";
+      }
+      $str .= ")";
+
+      $op1 = " $search_operator ";
+    }
+    $str .= " ) ";
+    if ($not_comment)
+      $str .= " and wr_is_comment = '0' ";
+
+    return $str;
+  }
+
+  // 인기검색어 입력
+  public function insert_popular($field, $str) {
+    global $g5;
+    if(!in_array('mb_id', $field)) {
+      $sql = "INSERT INTO {$g5['popular_table']} SET pp_word = ?, pp_date = ?, pp_ip = ?";
+      $this->sql_query($sql, [$str, G5_TIME_YMD, $_SERVER['REMOTE_ADDR']]);
+    }
+  }
+
+  // 제목을 변환
+  public function conv_subject($subject, $len, $suffix='') {
+    return $this->get_text($this->cut_str($subject, $len, $suffix));
+  }
+
+  // 회원 레이어
+  public function get_sideview($mb_id, $name='', $email='', $homepage='') {
+    global $g5;
+    global $bo_table;
+    $config = $this->config;
+    $is_admin = $this->$is_admin;
+    $member = $this->member;
+    $sca = $this->qstr['sca'];
+
+    $email = $this->get_string_encrypt($email);
+    $homepage = $this->set_http($this->clean_xss_tags($homepage));
+
+    $name     = $this->get_text($name, 0, true);
+    $email    = $this->get_text($email);
+    $homepage = $this->get_text($homepage);
+
+    $tmp_name = "";
+    $en_mb_id = $mb_id;
+
+    if ($mb_id) {
+      //$tmp_name = "<a href=\"".G5_BBS_URL."/profile.php?mb_id=".$mb_id."\" class=\"sv_member\" title=\"$name 자기소개\" rel="nofollow" target=\"_blank\" onclick=\"return false;\">$name</a>";
+      $tmp_name = '<a href="'.G5_BBS_URL.'/profile.php?mb_id='.$mb_id.'" class="sv_member" title="'.$name.' 자기소개" target="_blank" rel="nofollow" onclick="return false;">';
+
+      if ($config['cf_use_member_icon']) {
+        $mb_dir = substr($mb_id,0,2);
+        $icon_file = G5_DATA_PATH.'/member/'.$mb_dir.'/'.$this->get_mb_icon_name($mb_id).'.gif';
+
+        if (file_exists($icon_file)) {
+          $icon_filemtile = (defined('G5_USE_MEMBER_IMAGE_FILETIME') && G5_USE_MEMBER_IMAGE_FILETIME) ? '?'.filemtime($icon_file) : '';
+          $width = $config['cf_member_icon_width'];
+          $height = $config['cf_member_icon_height'];
+          $icon_file_url = G5_DATA_URL.'/member/'.$mb_dir.'/'.$this->get_mb_icon_name($mb_id).'.gif'.$icon_filemtile;
+          $tmp_name .= '<span class="profile_img"><img src="'.$icon_file_url.'" width="'.$width.'" height="'.$height.'" alt=""></span>';
+
+          if ($config['cf_use_member_icon'] == 2) // 회원아이콘+이름
+            $tmp_name = $tmp_name.' '.$name;
+        } else {
+          if( defined('G5_THEME_NO_PROFILE_IMG') ){
+            $tmp_name .= G5_THEME_NO_PROFILE_IMG;
+          } else if( defined('G5_NO_PROFILE_IMG') ){
+            $tmp_name .= G5_NO_PROFILE_IMG;
+          }
+          if ($config['cf_use_member_icon'] == 2) // 회원아이콘+이름
+            $tmp_name = $tmp_name.' '.$name;
+        }
+      } else {
+        $tmp_name = $tmp_name.' '.$name;
+      }
+      $tmp_name .= '</a>';
+
+      $title_mb_id = '['.$mb_id.']';
+    } else {
+      if(!$bo_table)
+        return $name;
+
+      $tmp_name = '<a href="'.$this->get_pretty_url($bo_table, '', 'sca='.$sca.'&sfl=wr_name,1&stx='.$name).'" title="'.$name.' 이름으로 검색" class="sv_guest" rel="nofollow" onclick="return false;">'.$name.'</a>';
+      $title_mb_id = '[비회원]';
+    }
+
+    $str = "<span class=\"sv_wrap\">\n";
+    $str .= $tmp_name."\n";
+
+    $str2 = "<span class=\"sv\">\n";
+    if($mb_id)
+      $str2 .= "<a href=\"".G5_BBS_URL."/memo_form.php?me_recv_mb_id=".$mb_id."\" onclick=\"win_memo(this.href); return false;\">쪽지보내기</a>\n";
+    if($email)
+      $str2 .= "<a href=\"".G5_BBS_URL."/formmail.php?mb_id=".$mb_id."&amp;name=".urlencode($name)."&amp;email=".$email."\" onclick=\"win_email(this.href); return false;\">메일보내기</a>\n";
+    if($homepage)
+      $str2 .= "<a href=\"".$homepage."\" target=\"_blank\">홈페이지</a>\n";
+    if($mb_id)
+      $str2 .= "<a href=\"".G5_BBS_URL."/profile.php?mb_id=".$mb_id."\" onclick=\"win_profile(this.href); return false;\">자기소개</a>\n";
+    if($bo_table) {
+      if($mb_id) {
+        $str2 .= "<a href=\"".get_pretty_url($bo_table, '', "sca=".$sca."&amp;sfl=mb_id,1&amp;stx=".$en_mb_id)."\">아이디로 검색</a>\n";
+      } else {
+        $str2 .= "<a href=\"".get_pretty_url($bo_table, '', "sca=".$sca."&amp;sfl=wr_name,1&amp;stx=".$name)."\">이름으로 검색</a>\n";
+      }
+    }
+    if($mb_id)
+      $str2 .= "<a href=\"".G5_BBS_URL."/new.php?mb_id=".$mb_id."\" class=\"link_new_page\" onclick=\"check_goto_new(this.href, event);\">전체게시물</a>\n";
+    if($is_admin == "super" && $mb_id) {
+      $str2 .= "<a href=\"".G5_ADMIN_URL."/member_form.php?w=u&amp;mb_id=".$mb_id."\" target=\"_blank\">회원정보변경</a>\n";
+      $str2 .= "<a href=\"".G5_ADMIN_URL."/point_list.php?sfl=mb_id&amp;stx=".$mb_id."\" target=\"_blank\">포인트내역</a>\n";
+    }
+    $str2 .= "</span>\n";
+    $str .= $str2;
+    $str .= "\n<noscript class=\"sv_nojs\">".$str2."</noscript>";
+
+    $str .= "</span>";
+
+    return $str;
+  }
+
+  // set_search_font(), get_search_font() 함수를 search_font() 함수로 대체
+  function search_font($stx, $str) {
+    $config = $this->config;
+
+    // 문자앞에 \ 를 붙입니다.
+    $src = array('/', '|');
+    $dst = array('\/', '\|');
+
+    if (!trim($stx) && $stx !== '0') return $str;
+
+    // 검색어 전체를 공란으로 나눈다
+    $s = explode(' ', $stx);
+
+    // "/(검색1|검색2)/i" 와 같은 패턴을 만듬
+    $pattern = '';
+    $bar = '';
+    for ($m=0; $m<count($s); $m++) {
+      if (trim($s[$m]) == '') continue;
+      // 태그는 포함하지 않아야 하는데 잘 안되는군. ㅡㅡa
+      //$pattern .= $bar . '([^<])(' . quotemeta($s[$m]) . ')';
+      //$pattern .= $bar . quotemeta($s[$m]);
+      //$pattern .= $bar . str_replace("/", "\/", quotemeta($s[$m]));
+      $tmp_str = quotemeta($s[$m]);
+      $tmp_str = str_replace($src, $dst, $tmp_str);
+      $pattern .= $bar . $tmp_str . "(?![^<]*>)";
+      $bar = "|";
+    }
+
+    // 지정된 검색 폰트의 색상, 배경색상으로 대체
+    $replace = "<b class=\"sch_word\">\\1</b>";
+
+    return preg_replace("/($pattern)/i", $replace, $str);
+  }
+
+  // 게시물 정보($write_row)를 출력하기 위하여 $list로 가공된 정보를 복사 및 가공
+  public function get_list($write_row, $board, $skin_url, $subject_len=40) {
+    global $g5, $g5_object;
+    $config = $this->config;
+    $page = $this->page ? $this->page : 1;
+    $qstr = '';
+    foreach ($this->qstr as $key => $value) {
+      $qstr .= $key.'='.$value;
+    }
+
+    //$t = get_microtime();
+
+    $g5_object->set('bbs', $write_row['wr_id'], $write_row, $board['bo_table']);
+
+    // 배열전체를 복사
+    $list = $write_row;
+    unset($write_row);
+
+    $board_notice = array_map('trim', explode(',', $board['bo_notice']));
+    $list['is_notice'] = in_array($list['wr_id'], $board_notice);
+
+    if ($subject_len)
+      $list['subject'] = $this->conv_subject($list['wr_subject'], $subject_len, '…');
+    else
+      $list['subject'] = $this->conv_subject($list['wr_subject'], $board['bo_subject_len'], '…');
+
+    if( ! (isset($list['wr_seo_title']) && $list['wr_seo_title']) && $list['wr_id'] ){
+      $this->seo_title_update($this->get_write_table_name($board['bo_table']), $list['wr_id'], 'bbs');
+    }
+
+    // 목록에서 내용 미리보기 사용한 게시판만 내용을 변환함 (속도 향상) : kkal3(커피)님께서 알려주셨습니다.
+    if ($board['bo_use_list_content']) {
+    $html = 0;
+    if (strstr($list['wr_option'], 'html1'))
+      $html = 1;
+    else if (strstr($list['wr_option'], 'html2'))
+      $html = 2;
+
+    $list['content'] = $this->conv_content($list['wr_content'], $html);
+    }
+
+    $list['comment_cnt'] = '';
+    if ($list['wr_comment'])
+      $list['comment_cnt'] = "<span class=\"cnt_cmt\">".$list['wr_comment']."</span>";
+
+    // 당일인 경우 시간으로 표시함
+    $list['datetime'] = substr($list['wr_datetime'],0,10);
+    $list['datetime2'] = $list['wr_datetime'];
+    if ($list['datetime'] == G5_TIME_YMD)
+      $list['datetime2'] = substr($list['datetime2'],11,5);
+    else
+      $list['datetime2'] = substr($list['datetime2'],5,5);
+    // 4.1
+    $list['last'] = substr($list['wr_last'],0,10);
+    $list['last2'] = $list['wr_last'];
+    if ($list['last'] == G5_TIME_YMD)
+      $list['last2'] = substr($list['last2'],11,5);
+    else
+      $list['last2'] = substr($list['last2'],5,5);
+
+    $list['wr_homepage'] = $this->get_text($list['wr_homepage']);
+
+    $tmp_name = $this->get_text($this->cut_str($list['wr_name'], $config['cf_cut_name'])); // 설정된 자리수 만큼만 이름 출력
+    $tmp_name2 = $this->cut_str($list['wr_name'], $config['cf_cut_name']); // 설정된 자리수 만큼만 이름 출력
+    if ($board['bo_use_sideview'])
+      $list['name'] = $this->get_sideview($list['mb_id'], $tmp_name2, $list['wr_email'], $list['wr_homepage']);
+    else
+      $list['name'] = '<span class="'.($list['mb_id']?'sv_member':'sv_guest').'">'.$tmp_name.'</span>';
+
+    $reply = $list['wr_reply'];
+
+    $list['reply'] = strlen($reply)*20;
+
+    $list['icon_reply'] = '';
+    if ($list['reply'])
+      $list['icon_reply'] = '<img src="'.$skin_url.'/img/icon_reply.gif" class="icon_reply" alt="답변글">';
+
+    $list['icon_link'] = '';
+    if ($list['wr_link1'] || $list['wr_link2'])
+      $list['icon_link'] = '<i class="fa fa-link" aria-hidden="true"></i> ';
+
+    // 분류명 링크
+    $list['ca_name_href'] = $this->get_pretty_url($board['bo_table'], '', 'sca='.urlencode($list['ca_name']));
+
+    $list['href'] = $this->get_pretty_url($board['bo_table'], $list['wr_id'], $qstr);
+    $list['comment_href'] = $list['href'];
+
+    $list['icon_new'] = '';
+    if ($board['bo_new'] && $list['wr_datetime'] >= date("Y-m-d H:i:s", G5_SERVER_TIME - ($board['bo_new'] * 3600)))
+      $list['icon_new'] = '<img src="'.$skin_url.'/img/icon_new.gif" class="title_icon" alt="새글"> ';
+
+    $list['icon_hot'] = '';
+    if ($board['bo_hot'] && $list['wr_hit'] >= $board['bo_hot'])
+      $list['icon_hot'] = '<i class="fa fa-heart" aria-hidden="true"></i> ';
+
+    $list['icon_secret'] = '';
+    if (strstr($list['wr_option'], 'secret'))
+      $list['icon_secret'] = '<i class="fa fa-lock" aria-hidden="true"></i> ';
+
+    // 링크
+    for ($i=1; $i<=G5_LINK_COUNT; $i++) {
+      $list['link'][$i] = $this->set_http($this->get_text($list["wr_link{$i}"]));
+      $list['link_href'][$i] = G5_BBS_URL.'/link.php?bo_table='.$board['bo_table'].'&amp;wr_id='.$list['wr_id'].'&amp;no='.$i.$qstr;
+      $list['link_hit'][$i] = (int)$list["wr_link{$i}_hit"];
+    }
+
+    // 가변 파일
+    if ($board['bo_use_list_file'] || ($list['wr_file'] && $subject_len == 255) /* view 인 경우 */) {
+      $list['file'] = $this->get_file($board['bo_table'], $list['wr_id']);
+    } else {
+      $list['file']['count'] = $list['wr_file'];
+    }
+
+    if ($list['file']['count'])
+      $list['icon_file'] = '<i class="fa fa-download" aria-hidden="true"></i> ';
+
+    return $list;
+  }
   // 게시판 테이블에서 하나의 행을 읽음
   public function get_write($write_table, $wr_id, $is_cache=false) {
     global $g5, $g5_object;
@@ -519,6 +887,57 @@ class Commonlib {
   }
 
 
+  // XSS 어트리뷰트 태그 제거
+  public function clean_xss_attributes($str) {
+    $xss_attributes_string = 'onAbort|onActivate|onAttribute|onAfterPrint|onAfterScriptExecute|onAfterUpdate|onAnimationCancel|onAnimationEnd|onAnimationIteration|onAnimationStart|onAriaRequest|onAutoComplete|onAutoCompleteError|onAuxClick|onBeforeActivate|onBeforeCopy|onBeforeCut|onBeforeDeactivate|onBeforeEditFocus|onBeforePaste|onBeforePrint|onBeforeScriptExecute|onBeforeUnload|onBeforeUpdate|onBegin|onBlur|onBounce|onCancel|onCanPlay|onCanPlayThrough|onCellChange|onChange|onClick|onClose|onCommand|onCompassNeedsCalibration|onContextMenu|onControlSelect|onCopy|onCueChange|onCut|onDataAvailable|onDataSetChanged|onDataSetComplete|onDblClick|onDeactivate|onDeviceLight|onDeviceMotion|onDeviceOrientation|onDeviceProximity|onDrag|onDragDrop|onDragEnd|onDragEnter|onDragLeave|onDragOver|onDragStart|onDrop|onDurationChange|onEmptied|onEnd|onEnded|onError|onErrorUpdate|onExit|onFilterChange|onFinish|onFocus|onFocusIn|onFocusOut|onFormChange|onFormInput|onFullScreenChange|onFullScreenError|onGotPointerCapture|onHashChange|onHelp|onInput|onInvalid|onKeyDown|onKeyPress|onKeyUp|onLanguageChange|onLayoutComplete|onLoad|onLoadedData|onLoadedMetaData|onLoadStart|onLoseCapture|onLostPointerCapture|onMediaComplete|onMediaError|onMessage|onMouseDown|onMouseEnter|onMouseLeave|onMouseMove|onMouseOut|onMouseOver|onMouseUp|onMouseWheel|onMove|onMoveEnd|onMoveStart|onMozFullScreenChange|onMozFullScreenError|onMozPointerLockChange|onMozPointerLockError|onMsContentZoom|onMsFullScreenChange|onMsFullScreenError|onMsGestureChange|onMsGestureDoubleTap|onMsGestureEnd|onMsGestureHold|onMsGestureStart|onMsGestureTap|onMsGotPointerCapture|onMsInertiaStart|onMsLostPointerCapture|onMsManipulationStateChanged|onMsPointerCancel|onMsPointerDown|onMsPointerEnter|onMsPointerLeave|onMsPointerMove|onMsPointerOut|onMsPointerOver|onMsPointerUp|onMsSiteModeJumpListItemRemoved|onMsThumbnailClick|onOffline|onOnline|onOutOfSync|onPage|onPageHide|onPageShow|onPaste|onPause|onPlay|onPlaying|onPointerCancel|onPointerDown|onPointerEnter|onPointerLeave|onPointerLockChange|onPointerLockError|onPointerMove|onPointerOut|onPointerOver|onPointerUp|onPopState|onProgress|onPropertyChange|onqt_error|onRateChange|onReadyStateChange|onReceived|onRepeat|onReset|onResize|onResizeEnd|onResizeStart|onResume|onReverse|onRowDelete|onRowEnter|onRowExit|onRowInserted|onRowsDelete|onRowsEnter|onRowsExit|onRowsInserted|onScroll|onSearch|onSeek|onSeeked|onSeeking|onSelect|onSelectionChange|onSelectStart|onStalled|onStorage|onStorageCommit|onStart|onStop|onShow|onSyncRestored|onSubmit|onSuspend|onSynchRestored|onTimeError|onTimeUpdate|onTimer|onTrackChange|onTransitionEnd|onToggle|onTouchCancel|onTouchEnd|onTouchLeave|onTouchMove|onTouchStart|onTransitionCancel|onTransitionEnd|onUnload|onURLFlip|onUserProximity|onVolumeChange|onWaiting|onWebKitAnimationEnd|onWebKitAnimationIteration|onWebKitAnimationStart|onWebKitFullScreenChange|onWebKitFullScreenError|onWebKitTransitionEnd|onWheel';
+    
+    do {
+      $count = $temp_count = 0;
+
+      $str = preg_replace(
+        '/(.*)(?:' . $xss_attributes_string . ')(?:\s*=\s*)(?:\'(?:.*?)\'|"(?:.*?)")(.*)/ius',
+        '$1-$2-$3-$4',
+        $str,
+        -1,
+        $temp_count
+      );
+      $count += $temp_count;
+
+      $str = preg_replace(
+        '/(.*)(?:' . $xss_attributes_string . ')\s*=\s*(?:[^\s>]*)(.*)/ius',
+        '$1$2',
+        $str,
+        -1,
+        $temp_count
+      );
+      $count += $temp_count;
+
+    } while ($count);
+
+    return $str;
+  }
+
+
+  // 검색어 특수문자 제거
+  public function get_search_string($stx){
+    $stx_pattern = array();
+    $stx_pattern[] = '#\.*/+#';
+    $stx_pattern[] = '#\\\*#';
+    $stx_pattern[] = '#\.{2,}#';
+    $stx_pattern[] = '#[/\'\"%=*\#\(\)\|\+\&\!\$~\{\}\[\]`;:\?\^\,]+#';
+
+    $stx_replace = array();
+    $stx_replace[] = '';
+    $stx_replace[] = '';
+    $stx_replace[] = '.';
+    $stx_replace[] = '';
+
+    $stx = preg_replace($stx_pattern, $stx_replace, $stx);
+
+    return $stx;
+  }
+
+
   //포인트 관련
   public function insert_point($mb_id, $point, $content='', $rel_table='', $rel_id='', $rel_action='', $expire=0) {
     global $g5;
@@ -590,6 +1009,82 @@ class Commonlib {
     return 1;
   }
   
+  // 한페이지에 보여줄 행, 현재페이지, 총페이지수, URL
+  public function get_paging($write_pages, $cur_page, $total_page, $url, $add="") {
+    //$url = preg_replace('#&amp;page=[0-9]*(&amp;page=)$#', '$1', $url);
+    $url = preg_replace('#(&amp;)?page=[0-9]*#', '', $url);
+    $url .= substr($url, -1) === '?' ? 'page=' : '&amp;page=';
+    $i = 0;
+    $str = array();
+    if ($cur_page > 1) {
+      $str[$i]['name'] = '처음';
+      $str[$i]['url'] = $url.'1'.$add;
+      $i++;
+    }
+
+    $start_page = ( ( (int)( ($cur_page - 1 ) / $write_pages ) ) * $write_pages ) + 1;
+    $end_page = $start_page + $write_pages - 1;
+
+    if ($end_page >= $total_page) $end_page = $total_page;
+
+    if ($start_page > 1) {
+      $str[$i]['name'] = '이전';
+      $str[$i]['url'] = $url.($start_page-1).$add;
+      $i++;
+    }
+
+    if ($total_page > 1) {
+      for ($k=$start_page;$k<=$end_page;$k++) {
+        if ($cur_page != $k) {
+          $str[$i]['name'] = $k;
+          $str[$i]['url'] = $url.$k.$add;
+          $i++;
+        } else {
+          $str[$i]['name'] = $k;
+          $str[$i]['active'] = true;
+          $i++;
+        }
+      }
+    }
+
+    if ($total_page > $end_page) {
+      $str[$i]['name'] = '다음';
+      $str[$i]['url'] = $url.($end_page+1).$add;
+      $i++;
+    }
+
+    if ($cur_page < $total_page) {
+      $str[$i]['name'] = '맨끝';
+      $str[$i]['url'] = $url.$total_page.$add;
+      $i++;
+    }
+
+    return $str;
+  }
+
+  // 페이징 코드의 <nav><span> 태그 다음에 코드를 삽입
+  function page_insertbefore($paging, $prev_part_href) {
+    foreach ($paging as $key => $value) {
+      if($paging[$key]['name'] == '이전') {
+        $paging[$key]['name'] = '이전검색';
+        $paging[$key]['url'] = $prev_part_href;
+      }
+    }
+
+    return $paging;
+  }
+
+  // 페이징 코드의 </span></nav> 태그 이전에 코드를 삽입
+  function page_insertafter($paging, $next_part_href) {
+    foreach ($paging as $key => $value) {
+      if($paging[$key]['name'] == '다음') {
+        $paging[$key]['name'] = '다음검색';
+        $paging[$key]['url'] = $next_part_href;
+      }
+    }
+
+    return $paging;
+  }
   // 사용포인트 입력
   public function insert_use_point($mb_id, $point, $po_id='')
   {
@@ -927,7 +1422,37 @@ class Commonlib {
     }
   }
 
+  /*******************************************************************************
+    유일한 키를 얻는다.
 
+    결과 :
+
+        년월일시분초00 ~ 년월일시분초99
+        년(4) 월(2) 일(2) 시(2) 분(2) 초(2) 100분의1초(2)
+        총 16자리이며 년도는 2자리로 끊어서 사용해도 됩니다.
+        예) 2008062611570199 또는 08062611570199 (2100년까지만 유일키)
+
+    사용하는 곳 :
+    1. 게시판 글쓰기시 미리 유일키를 얻어 파일 업로드 필드에 넣는다.
+    2. 주문번호 생성시에 사용한다.
+    3. 기타 유일키가 필요한 곳에서 사용한다.
+  *******************************************************************************/
+  // 기존의 get_unique_id() 함수를 사용하지 않고 get_uniqid() 를 사용한다.
+  public function get_uniqid() {
+    global $g5;
+    $this->sql_query(" LOCK TABLE {$g5['uniqid_table']} WRITE ");
+    while (1) {
+      // 년월일시분초에 100분의 1초 두자리를 추가함 (1/100 초 앞에 자리가 모자르면 0으로 채움)
+      $key = date('YmdHis', time()) . str_pad((int)((float)microtime()*100), 2, "0", STR_PAD_LEFT);
+
+      $result = $this->sql_query("INSERT INTO {$g5['uniqid_table']} SET uq_id = ?, uq_ip = ? ", [$key, $_SERVER['REMOTE_ADDR']]);
+      if ($result) break; // 쿼리가 정상이면 빠진다.
+      // insert 하지 못했으면 일정시간 쉰다음 다시 유일키를 만든다.
+      usleep(10000); // 100분의 1초를 쉰다
+    }
+    $this->sql_query("UNLOCK TABLES");
+    return $key;
+  }
 
 
   public function unset_data($data) { //권한이 없는 사용자들에게 노출되면 안되는 그누보드 내용

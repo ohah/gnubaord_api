@@ -14,7 +14,7 @@ trait common {
   public $qaconfig = array();
   public $g5_debug = array('php'=>array(),'sql'=>array());
   public $write = array();
-  public $qstr = '';
+  public $qstr = array();
   public $g5_object;
   public function __construct() {
     global $g5, $g5_object;
@@ -24,7 +24,7 @@ trait common {
       $this->db->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
       $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     } catch(PDOException $e) {
-      echo $this->msg('DB 연결에 실패하였습니다');
+      $this->alert('DB 연결에 실패하였습니다');
       $e->getMessage();
     }
     /*******************************************************************************
@@ -122,96 +122,97 @@ trait common {
     define('G5_HTTP_BBS_URL',  $this->https_url(G5_BBS_DIR, false));
     define('G5_HTTPS_BBS_URL', $this->https_url(G5_BBS_DIR, true));
     
-    if (isset($_REQUEST['sca']))  {
-      $sca = clean_xss_tags(trim($_REQUEST['sca']));
+    $query = $this->REQUEST_URI(); //common.php 에서 받는 리퀘스트 대신 쿼리로 받음
+    
+    if (isset($query['sca']))  {
+      $sca = $this->clean_xss_tags(trim($query['sca']));
       if ($sca) {
         $sca = preg_replace("/[\<\>\'\"\\\'\\\"\%\=\(\)\/\^\*]/", "", $sca);
-        $this->qstr .= '&sca=' . urlencode($sca);
+        $this->qstr['sca'] = urlencode($sca);
       }
     } else {
       $sca = '';
     }
-
-    if (isset($_REQUEST['sfl']))  {
-      $sfl = trim($_REQUEST['sfl']);
+    if (isset($query['sfl']))  {
+      $sfl = trim($query['sfl']);
       $sfl = preg_replace("/[\<\>\'\"\\\'\\\"\%\=\(\)\/\^\*\s]/", "", $sfl);
       if ($sfl)
-        $this->qstr .= '&sfl=' . urlencode($sfl); // search field (검색 필드)
+        $this->qstr['sfl'] = urlencode($sfl); // search field (검색 필드)
     } else {
       $sfl = '';
     }
 
-    if (isset($_REQUEST['stx']))  { // search text (검색어)
-      $stx = get_search_string(trim($_REQUEST['stx']));
+    if (isset($query['stx']))  { // search text (검색어)
+      $stx = $this->get_search_string(trim($query['stx']));
       if ($stx || $stx === '0')
-        $this->qstr .= '&stx=' . urlencode(cut_str($stx, 20, ''));
+        $this->qstr['stx'] = urlencode($this->cut_str($stx, 20, ''));
     } else {
       $sx = '';
     }
 
-    if (isset($_REQUEST['sst']))  {
-      $sst = trim($_REQUEST['sst']);
+    if (isset($query['sst']))  {
+      $sst = trim($query['sst']);
       $sst = preg_replace("/[\<\>\'\"\\\'\\\"\%\=\(\)\/\^\*\s]/", "", $sst);
       if ($sst)
-        $this->qstr .= '&sst=' . urlencode($sst); // search sort (검색 정렬 필드)
+        $this->qstr['sst'] = urlencode($sst); // search sort (검색 정렬 필드)
     } else {
-        $sst = '';
+      $sst = '';
     }
 
-    if (isset($_REQUEST['sod']))  { // search order (검색 오름, 내림차순)
+    if (isset($query['sod']))  { // search order (검색 오름, 내림차순)
       $sod = preg_match("/^(asc|desc)$/i", $sod) ? $sod : '';
       if ($sod)
-        $this->qstr .= '&sod=' . urlencode($sod);
+        $this->qstr['sod'] = urlencode($sod);
     } else {
       $sod = '';
     }
 
-    if (isset($_REQUEST['sop']))  { // search operator (검색 or, and 오퍼레이터)
+    if (isset($query['sop']))  { // search operator (검색 or, and 오퍼레이터)
       $sop = preg_match("/^(or|and)$/i", $sop) ? $sop : '';
       if ($sop)
-        $this->qstr .= '&sop=' . urlencode($sop);
+        $this->qstr['sop'] = urlencode($sop);
     } else {
       $sop = '';
     }
 
-    if (isset($_REQUEST['spt']))  { // search part (검색 파트[구간])
+    if (isset($query['spt']))  { // search part (검색 파트[구간])
       $spt = (int)$spt;
       if ($spt)
-        $this->qstr .= '&spt=' . urlencode($spt);
+        $this->qstr['spt'] = urlencode($spt);
     } else {
       $spt = '';
     }
 
-    if (isset($_REQUEST['page'])) { // 리스트 페이지
-      $page = (int)$_REQUEST['page'];
+    if (isset($query['page'])) { // 리스트 페이지
+      $page = (int)$query['page'];
       if ($page)
-        $this->qstr .= '&page=' . urlencode($page);
+        $this->qstr['page'] = urlencode($page);
     } else {
       $page = '';
     }
 
-    if (isset($_REQUEST['w'])) {
+    if (isset($query['w'])) {
       $w = substr($w, 0, 2);
     } else {
       $w = '';
     }
 
-    if (isset($_REQUEST['wr_id'])) {
-      $wr_id = (int)$_REQUEST['wr_id'];
+    if (isset($query['wr_id'])) {
+      $wr_id = (int)$query['wr_id'];
     } else {
       $wr_id = 0;
     }
 
-    if (isset($_REQUEST['bo_table']) && ! is_array($_REQUEST['bo_table'])) {
-      $bo_table = preg_replace('/[^a-z0-9_]/i', '', trim($_REQUEST['bo_table']));
+    if (isset($query['bo_table']) && ! is_array($query['bo_table'])) {
+      $bo_table = preg_replace('/[^a-z0-9_]/i', '', trim($query['bo_table']));
       $bo_table = substr($bo_table, 0, 20);
     } else {
       $bo_table = '';
     }
 
     // URL ENCODING
-    if (isset($_REQUEST['url'])) {
-      $url = strip_tags(trim($_REQUEST['url']));
+    if (isset($query['url'])) {
+      $url = strip_tags(trim($query['url']));
       $urlencode = urlencode($url);
     } else {
       $url = '';
@@ -222,9 +223,9 @@ trait common {
       }
     }
 
-    if (isset($_REQUEST['gr_id'])) {
-      if (!is_array($_REQUEST['gr_id'])) {
-        $gr_id = preg_replace('/[^a-z0-9_]/i', '', trim($_REQUEST['gr_id']));
+    if (isset($query['gr_id'])) {
+      if (!is_array($query['gr_id'])) {
+        $gr_id = preg_replace('/[^a-z0-9_]/i', '', trim($query['gr_id']));
       }
     } else {
       $gr_id = '';
@@ -299,7 +300,10 @@ trait common {
   
     }
   }  
-
+  public function REQUEST_URI() {
+    parse_str(parse_url($_SERVER["REQUEST_URI"],PHP_URL_QUERY), $query); // parse query string
+    return $query;
+  }
   // multi-dimensional array에 사용자지정 함수적용
   public function array_map_deep($fn, $array) {
     if(is_array($array)) {

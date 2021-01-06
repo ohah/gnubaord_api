@@ -15,7 +15,12 @@ trait get_datalib {
 
   public function get_board_names(){
     global $g5;
-    $board = $this->sql_query("SELECT bo_table FROM {$g5['board_table']}");
+    static $boards = array();
+    $boards = run_replace('get_board_names_cache', $boards);
+    if(!$boards ){
+      $sql = " select bo_table from {$g5['board_table']} ";
+      $boards = $this->sql_query("SELECT bo_table FROM {$g5['board_table']}");
+    }
     return $boards;
   }
 
@@ -108,6 +113,61 @@ trait get_datalib {
     }
 
     return $sql_str;
+  }
+  
+  public function get_class_encrypt(){
+    static $cache;
+    if( $cache && is_object($cache) ){
+      return $cache;
+    }
+    $cache = run_replace('get_class_encrypt', new str_encrypt());
+    return $cache;
+  }
+
+  public function get_string_encrypt($str){
+    $new = get_class_encrypt();
+    $encrypt_str = $new->encrypt($str);
+    return $encrypt_str;
+  }
+
+  public function get_string_decrypt($str){
+    $new = get_class_encrypt();
+    $decrypt_str = $new->decrypt($str);
+    return $decrypt_str;
+  }
+
+  public function get_permission_debug_show(){
+    global $member;
+    $bool = false;
+    if ( defined('G5_DEBUG') && G5_DEBUG ){
+      $bool = true;
+    }
+    return run_replace('get_permission_debug_show', $bool, $member);
+  }
+  public function get_check_mod_rewrite(){
+    if( function_exists('apache_get_modules') && in_array('mod_rewrite', apache_get_modules()) )
+      $mod_rewrite = 1;
+    elseif( isset($_SERVER['IIS_UrlRewriteModule']) )
+      $mod_rewrite = 1;
+    else
+      $mod_rewrite = 0;
+    return $mod_rewrite;
+  }
+
+  public function get_mb_icon_name($mb_id){
+    if( $icon_name = run_replace('get_mb_icon_name', '', $mb_id) ){
+      return $icon_name;
+    }
+    return $mb_id;
+  }
+
+  // 생성되면 안되는 게시판명
+  public function get_bo_table_banned_word(){
+    $folders = array();
+    foreach(glob(G5_PATH.'/*', GLOB_ONLYDIR) as $dir) {
+      $folders[] = basename($dir);
+    }
+    return run_replace('get_bo_table_banned_word', $folders);
   }
 
   public function get_board_sort_fields($board=array(), $make_key_return=''){

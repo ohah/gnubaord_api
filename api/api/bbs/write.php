@@ -246,7 +246,7 @@ trait write {
 
     $is_mail = false;
     if ($config['cf_email_use'] && $board['bo_use_email'])
-      $is_mai] = true;
+      $is_mail = true;
 
     $recv_email_checked = '';
     if ($w == '' || strstr($write['wr_option'], 'mail'))
@@ -428,11 +428,22 @@ trait write {
 
     // 임시 저장된 글 수
     $autosave_count = $this->autosave_count($member['mb_id']);
+    $uid = $this->get_uniqid();
     $arr = get_defined_vars();
-    print_r($arr);
+    $filter = [
+      'uid', 'w', 'bo_table', 'wr_id', 'sca', 'sfl',' stx', 'stp', 'sst', 'sod', 'page',
+      'is_notice', 'is_html', 'is_secret', 'is_mail', 'is_dhtml_editor', 'is_category', 
+      'is_name', 'is_password', 'is_email', 'is_homepage', 'option', 'is_member', 'editor_content_js', 'autosave_count',
+      'write_min', 'write_max', 'editor_html', 'is_link', 'is_file', 'is_file_content', 'file',
+      'is_use_captcha', 'captcha_html', 
+      'write', 
+    ];
     foreach ( $arr as $key => $value ) {
-      $data[$key] = $value;
+      if(!in_array($key, $filter)) {
+        unset($arr[$key]);
+        //$data[$key] = $value;
+      }
     }
-    print_r($data);
+    //echo json_encode($arr, JSON_UNESCAPED_UNICODE);
   }
 }

@@ -7,8 +7,8 @@ trait urllib{
   // 짧은 주소 형식으로 만들어서 가져온다.
   public function get_pretty_url($folder, $no='', $query_string='', $action='') {
     global $g5;
-    $config = $this->config;
-    $result = $this->sql_query("SELECT bo_table FROM {$g5['board_table']}");
+    $config = $this->config;    
+    $boards = $this->get_board_names();
     $segments = array();
     $url = $add_query = '';
     // use shortten url
@@ -23,6 +23,7 @@ trait urllib{
           $segments[2] = urlencode($no);
         }
       } else if(in_array($folder, $boards)) {     // 게시판
+        
         $segments[1] = $folder;
         if($no) {
           if( $config['cf_bbs_rewrite'] > 1 ){
