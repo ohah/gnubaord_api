@@ -8,7 +8,7 @@ $api = new Gnuboard_api();
 date_default_timezone_set("Asia/Seoul");
 $router = new \Bramus\Router\Router();
 $router->get('/', function() use ($api) {
-  //echo "??";
+  echo "테스트 그누보드입니다.";
   //$api->sql_query();
 });
 $router->match('GET|POST', '/Auth/{mb_id}', function($mb_id) use ($api) {
@@ -101,6 +101,7 @@ $router->mount('/board', function() use ($router, $api) {
     echo $api->get_view_cmt($mb_id);
   });
   /**
+   * 글 삭제
    * 작성자, 관리자만 가능
    * @param bo_table address;
    * @param wr_id address;
@@ -109,6 +110,11 @@ $router->mount('/board', function() use ($router, $api) {
   $router->match('DELETE|POST', '/{bo_table}/{wr_id}/comment/{comment_id}', function($bo_table, $wr_id, $comment_id) use ($api) {    
     echo $api->delete_comment($bo_table, $wr_id);
   });
+  /**
+   * 글보기 view.php
+   * @param bo_table 테이블ID
+   * @param wr_id 글ID
+   */
   $router->get('/{bo_table}/{wr_id}', function($bo_table, $wr_id) use ($api) {
     $api->board_chk($bo_table, $wr_id);
     echo $api->get_views($bo_table, $wr_id);
@@ -135,8 +141,15 @@ $router->mount('/board', function() use ($router, $api) {
     echo $api->delete_all($bo_table, $wr_id);
   });
 });
+/**
+ * 글쓰기
+ * @param write(글수정)
+ * @param write_update(글수정)
+ * @param write_update(글쓰기)
+ * @param write(글쓰기)
+ */
 $router->mount('/write', function() use ($router, $api) {
-  $router->match('GET|POST', '/{bo_table}/{wr_id}/{$w}', function($bo_table, $wr_id, $w) use ($api) {
+  $router->match('GET|POST', '/{bo_table}/{wr_id}/{w}', function($bo_table, $wr_id, $w) use ($api) {
     $api->write($bo_table, $wr_id, $w);
   });
   $router->match('PUT|POST', '/{bo_table}/{wr_id}', function($bo_table, $wr_id) use ($api) {
@@ -157,17 +170,38 @@ $router->match('GET', '/menus', function() use ($api){
 $router->match('GET', '/autosave', function() use ($api){
   echo $api->get_autosave();
 });
+/**
+ * 프로필
+ * @param mb_id 맴버 아이디
+ */
 $router->match('GET', '/profile/{mb_id}', function($mb_id) use ($api){
   echo $api->profile($mb_id);
 });
+/**
+ * 비밀번호
+ * @param w sc, c, u, r 등 요청에 맞는 그누보드 기본값
+ * @param bo_table 테이블 이름
+ * @param wr_id wr_id 값
+ */
 $router->match('POST', '/password/{w}/{bo_table}/{wr_id}', function($w, $bo_table, $wr_id) use ($api){
   echo $api->password_check($w, $bo_table, $wr_id);
 });
+/**
+ * 최신글
+ * @param bo_table 테이블명
+ * @param rows 개수
+ * @param subject_len 제목길이
+ */
 $router->match('GET', '/latest(/[a-z0-9_-]+)?(/[0-9_-]+)?(/[0-9_-]+)?', function($bo_table, $rows, $subject_len) use ($api) {
   $rows = $rows ? $rows : 10;
   $subject_len = $subject_len ? $subject_len : 40;
   echo $api->latest($bo_table, $rows, $subject_len);
 });
+/**
+ * 인기검색어
+ * @param pop_cnt 검색어 개수(기본값 7)
+ * @param date_cnt 날짜(기본값 3)
+ */
 $router->match('GET', '/popular(/[0-9_-]+)?(/[0-9_-]+)?', function($pop_cnt = 7, $date_cnt = 3) use ($api){
   $pop_cnt = $pop_cnt ? $pop_cnt : 7;
   $date_cnt = $date_cnt ? $date_cnt : 7;
