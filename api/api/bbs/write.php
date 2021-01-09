@@ -13,7 +13,7 @@ trait write {
     $is_member = $this->is_member;
     $board = $this->get_board_db($bo_table);
     $group = $this->get_group($board['gr_id']);
-    
+    $wr_password = $_POST['wr_password'] ? $wr_password : '';
     if (!$board['bo_table']) {
       $this->alert('존재하지 않는 게시판입니다.', G5_URL);
     }
@@ -316,6 +316,8 @@ trait write {
           if (!$this->check_password($wr_password, $write['wr_password'])) {
             $is_wrong = run_replace('invalid_password', false, 'write', $write);
             if(!$is_wrong) $this->alert('비밀번호가 틀립니다.');
+          }else {
+            $this->write_passsword_check($bo_table, $wr_id);
           }
         }
       }
@@ -401,7 +403,7 @@ trait write {
     $is_use_captcha = ((($board['bo_use_captcha'] && $w !== 'u') || $is_guest) && !$is_admin) ? 1 : 0;
 
     if ($is_use_captcha) {
-      //$captcha_html = $this->captcha_json();
+      $captcha_html = $this->captcha_html();
       //$captcha_js   = $this->chk_captcha_js();
     }
 
@@ -444,6 +446,6 @@ trait write {
         //$data[$key] = $value;
       }
     }
-    //echo json_encode($arr, JSON_UNESCAPED_UNICODE);
+    echo json_encode($arr, JSON_UNESCAPED_UNICODE);
   }
 }

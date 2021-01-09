@@ -34,11 +34,11 @@ trait get_datalib {
     $res = $this->sql_query("SELECT * FROM {$g5['menu_table']} WHERE length(me_code) = ? ORDER By me_order, me_id", ['2']);
     for($i=0;$i<count($res);$i++) {
       $res[$i]['ori_me_link'] = $res[$i]['me_link'];
-      $res[$i]['me_link'] = short_url_clean($res[$i]['me_link']);
+      $res[$i]['me_link'] = $this->short_url_clean($res[$i]['me_link']);
       $row2 = $this->sql_query("SELECT * FROM {$g5['menu_table']} WHERE length(me_code) = ? AND substring(me_code, 1,2) = ? ORDER By me_order, me_id", ['4', $res[$i]['me_code']]);
       for($k=0;$k<count($row2);$k++) {
         $row2[$i]['ori_me_link'] = $row2[$i]['me_link'];
-        $row2[$i]['me_link'] = short_url_clean($row2[$i]['me_link']);
+        $row2[$i]['me_link'] = $this->short_url_clean($row2[$i]['me_link']);
         $res[$i]['sub'][$k] = $row2[$i];
       }
     }
@@ -125,13 +125,13 @@ trait get_datalib {
   }
 
   public function get_string_encrypt($str){
-    $new = get_class_encrypt();
+    $new = $this->get_class_encrypt();
     $encrypt_str = $new->encrypt($str);
     return $encrypt_str;
   }
 
   public function get_string_decrypt($str){
-    $new = get_class_encrypt();
+    $new = $this->get_class_encrypt();
     $decrypt_str = $new->decrypt($str);
     return $decrypt_str;
   }

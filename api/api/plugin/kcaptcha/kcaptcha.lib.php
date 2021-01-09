@@ -15,10 +15,11 @@
 # You can remove it, but I would be pleased if you left it. ;)
 
 # See kcaptcha_config.php for customization
-trait KCAPTCHA{
-	// generates keystring and image
-	function image(){
-     require(dirname(__FILE__).'/kcaptcha_config.php');
+trait KCAPTCHA {
+  // generates keystring and image
+  public $keystring;
+	public function image(){
+    require(dirname(__FILE__).'/kcaptcha_config.php');
 
 		$fonts=array();
 		$fontsdir_absolute=dirname(__FILE__).'/'.$fontsdir;
@@ -73,6 +74,8 @@ trait KCAPTCHA{
         $odd=mt_rand(0,1);
         if($odd==0) $odd=-1;
         for($i=0;$i<$length;$i++){
+
+            if( ! isset($this->keystring[$i]) ) continue;
             $m=$font_metrics[$this->keystring[$i]];
 
             $y=(($i%2)*$fluctuation_amplitude - $fluctuation_amplitude/2)*$odd
@@ -203,62 +206,84 @@ trait KCAPTCHA{
 				imagesetpixel($img2, $x, $y, imagecolorallocate($img2, $newred, $newgreen, $newblue));
 			}
 		}
-
+    /*
 		header('Expires: Mon, 26 Jul 1997 05:00:00 GMT');
 		header('Cache-Control: no-store, no-cache, must-revalidate');
 		header('Cache-Control: post-check=0, pre-check=0', FALSE);
 		header('Pragma: no-cache');
-
+    */
 		if(function_exists("imagejpeg")){
-			header("Content-Type: image/jpeg");
+      header("Content-Type: image/jpeg");
+      //ob_start();
 			imagejpeg($img2, null, $jpeg_quality);
+      //$bin = ob_get_clean();
+      //return $b64 = base64_encode($bin);
 		}else if(function_exists("imagegif")){
 			header("Content-Type: image/gif");
-			imagegif($img2);
+      //ob_start();
+      imagegif($img2);
+      //$bin = ob_get_clean();
+      //return $b64 = base64_encode($bin);
 		}else if(function_exists("imagepng")){
-			header("Content-Type: image/x-png");
-			imagepng($img2);
-		}  
+      header("Content-Type: image/x-png");
+			//ob_start();
+      imagepng($img2);
+      //$bin = ob_get_clean();
+      //return $b64 = base64_encode($bin);
+    }
   }
 
-	// returns keystring
-	function getKeyString(){
-		return $this->keystring;
-	}
+    // returns keystring
+    public function getKeyString(){
+      return $this->keystring;
+    }
 
-    function setKeyString($str){
-        $this->keystring = $str;
+    public function setKeyString($str){
+      $this->keystring = $str;
     }
     
-    // 캡챠 JSON 코드 출력
-    function captcha_json() {
+    public function kcaptcha_ssesion () {
+      require(dirname(__FILE__).'/kcaptcha_config.php');
+      while(true){
+        $keystring='';
+        for($i=0;$i<$length;$i++){
+          $keystring.=$allowed_symbols[mt_rand(0,strlen($allowed_symbols)-1)];
+        }
+        if(!preg_match('/cp|cb|ck|c6|c9|rn|rm|mm|co|do|cl|db|qp|qb|dp|ww/', $keystring)) break;
+      }
+      $this->set_session("ss_captcha_count", 0);
+      $this->set_session("ss_captcha_key", $keystring);
       $this->setKeyString($this->get_session("ss_captcha_key"));
-      $this->getKeyString();
-      $this->image();
+    }
+    // 캡챠 JSON 코드 출력
+    public function kcaptcha_html() {
+      require(dirname(__FILE__).'/kcaptcha_config.php');
+      $this->kcaptcha_ssesion();
+      $this->setKeyString($this->get_session("ss_captcha_key"));
       $result = array(
-        'g5_captcha_url' => G5_CAPTCHA_URL,
-        'g5_captcha_js_url' => G5_CAPTCHA_URL.'/kcaptcha.js',
+        'g5_captcha_url' => API_URL.'/captcha/K?t='.time()*1000,
+        ///'g5_captcha_base64' => $this->image(),
       );
       return $result;
     }
     // 캡챠 사용시 자바스크립트에서 입력된 캡챠를 검사함
-    function chk_captcha_js() {
+    public function chk_captcha_js() {
       return "if (!chk_captcha()) return false;\n";
     }
     // 세션에 저장된 캡챠값과 $_POST 로 넘어온 캡챠값을 비교
-    public function chk_captcha()
-    {
-        $captcha_count = (int)$this->get_session('ss_captcha_count');
-        if ($captcha_count > 5) {
-            return false;
-        }
+    public function chk_kcaptcha() {
+      $captcha_count = (int)$this->get_session('ss_captcha_count');
+      $this->get_session('ss_captcha_key');
+      if ($captcha_count > 5) {
+        return false;
+      }
 
-        if (!isset($_POST['captcha_key'])) return false;
-        if (!trim($_POST['captcha_key'])) return false;
-        if ($_POST['captcha_key'] != $this->get_session('ss_captcha_key')) {
-            $_SESSION['ss_captcha_count'] = $captcha_count + 1;
-            return false;
-        }
-        return true;
+      if (!isset($_POST['captcha_key'])) return false;
+      if (!trim($_POST['captcha_key'])) return false;
+      if ($_POST['captcha_key'] != $this->get_session('ss_captcha_key')) {
+        $_SESSION['ss_captcha_count'] = $captcha_count + 1;
+        return false;
+      }
+      return true;
     }
 }

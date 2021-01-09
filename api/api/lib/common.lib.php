@@ -33,27 +33,89 @@ $g5['social_profile_table'] = G5_TABLE_PREFIX.'member_social_profiles'; // 소�
 // $dir 을 포함하여 https 또는 http 주소를 반환한다.
 require 'jwt/autoload.php';
 require API_PATH.'/bbs/board.php';
+require API_PATH.'/bbs/email_certify.php';
+require API_PATH.'/bbs/good.php';
+require API_PATH.'/bbs/qa.php';
+require API_PATH.'/bbs/password.php';
+require API_PATH.'/bbs/register.php';
+require API_PATH.'/str_encrypt.php';
 require API_PATH.'/bbs/write_update.php';
 require API_PATH.'/bbs/write.php';
 require API_PATH.'/bbs/view.php';
+require API_PATH.'/bbs/view_comment.php';
+require API_PATH.'/bbs/write_comment_update.php';
+require API_PATH.'/bbs/search.php';
+require API_PATH.'/bbs/scrap.php';
 require API_PATH.'/bbs/list.php';
+require API_PATH.'/bbs/profile.php';
+require API_PATH.'/bbs/delete.php';
 require API_PATH.'/plugin/kcaptcha/kcaptcha.lib.php';
+require API_PATH.'/lib/latest.lib.php';
+require API_PATH.'/lib/register.lib.php';
+require API_PATH.'/lib/popular.lib.php';
 require API_PATH.'/lib/uri.lib.php';
 require API_PATH.'/lib/get_data.lib.php';
 require API_PATH.'/lib/naver_syndi.lib.php';
+require API_PATH.'/lib/mailer.lib.php';
+
+/** 구글 캡챠 */
+require API_PATH.'/plugin/recaptcha/recaptcha.class.php';
+require API_PATH.'/plugin/recaptcha/recaptcha.user.lib.php';
+require API_PATH.'/plugin/recaptcha_inv/recaptcha.class.php';
+require API_PATH.'/plugin/recaptcha_inv/recaptcha.user.lib.php';
+/** 구글 캡챠 */
 use Firebase\JWT\JWT;
 class Commonlib {
   use board;
+  use email_certify;
+  use good;
+  use qa;
+  use password;
+  use register;
   use write;
   use write_update;
   use view;
+  use view_comment;
+  use write_comment_update;
+  use profile;
+  use delete;
+  use search;
+  use scrap;
   use bbs_list;
   use KCAPTCHA;
+  use recaptcha_inv;
+  use recapthca;
+  use registerlib;
+  use pupularlib;
   use urllib;
+  use latestlib;
   use naver_syndilib;
   use get_datalib;
+  use mailerlib;
   public $cookiename = 'gnu_jwt';
   public function __construct() {
+  }
+  // 리퍼러 체크
+  public function referer_check($url='') {
+      /*
+      // 제대로 체크를 하지 못하여 주석 처리함
+      global $g5;
+
+      if (!$url)
+          $url = G5_URL;
+
+      if (!preg_match("/^http['s']?:\/\/".$_SERVER['HTTP_HOST']."/", $_SERVER['HTTP_REFERER']))
+          alert("제대로 된 접근이 아닌것 같습니다.", $url);
+      */
+  }
+
+  
+  // unescape nl 얻기
+  public function conv_unescape_nl($str){
+    $search = array('\\r', '\r', '\\n', '\n');
+    $replace = array('', '', "\n", "\n");
+
+    return str_replace($search, $replace, $str);
   }
   // 관리자인가?
   public function is_admin($mb_id) {
@@ -69,6 +131,16 @@ class Commonlib {
     return $is_authority;
   }
 
+  public function option_selected($value, $selected, $text=''){ 
+    $result = array();
+    if (!$text) $text = $value;
+    $result['value'] = $value;
+    $result['text'] = $text;
+    if ($value == $selected) {      
+      $result['selected'] = $selected;
+    }
+    return $result;
+  }
   function get_category_option($bo_table='', $ca_name='') {
     global $g5;
     $is_admin = $this->is_admin;
@@ -116,7 +188,45 @@ class Commonlib {
     echo json_encode(array('msg'=>$msg, 'url'=> $url), JSON_UNESCAPED_UNICODE);
     exit;
   }
+  public function captcha_html() {
+    $config = $this->config;
+    if($config['cf_captcha'] == 'kcapthca') {
+      $this->kcaptcha_html();
+    }else if($config['cf_captcha'] == 'recaptcha') {
+    }else if($config['cf_captcha'] == 'recaptcha_inv') {
+    }
+  }
+  public function chk_captcha() {
+    $config = $this->config;
+    if($config['cf_captcha'] == 'kcapthca') {
+      $this->chk_kcaptcha();
+    }else if($config['cf_captcha'] == 'recaptcha') {
+    }else if($config['cf_captcha'] == 'recaptcha_inv') {
+    }
+  }
+  // 1:1문의 설정로드
+  public function get_qa_config($fld='*', $is_cache=false) {
+    global $g5;
+    static $cache = array();
 
+    if( $is_cache && !empty($cache) ){
+      return $cache;
+    }
+    $sql = " select * from {$g5['qa_config_table']} ";
+    $cache = run_replace('get_qa_config', $this->sql_fetch($sql));
+
+    return $cache;
+  }
+
+  // view_file_link() 함수에서 넘겨진 이미지를 보이게 합니다.
+  // {img:0} ... {img:n} 과 같은 형식
+  public function view_image($view, $number, $attribute) {
+    if ($view['file'][$number]['view'])
+      return preg_replace("/>$/", " $attribute>", $view['file'][$number]['view']);
+    else
+      //return "{".$number."번 이미지 없음}";
+      return "";
+  }
   // 파일을 보이게 하는 링크 (이미지, 플래쉬, 동영상)
   public function view_file_link($file, $width, $height, $content='') {
     global $g5;
@@ -144,6 +254,62 @@ class Commonlib {
 
       return $img;
     }
+  }
+
+  // 휴대폰번호의 숫자만 취한 후 중간에 하이픈(-)을 넣는다.
+  public function hyphen_hp_number($hp) {
+    $hp = preg_replace("/[^0-9]/", "", $hp);
+    return preg_replace("/([0-9]{3})([0-9]{3,4})([0-9]{4})$/", "\\1-\\2-\\3", $hp);
+  }
+  // 문자열이 한글, 영문, 숫자, 특수문자로 구성되어 있는지 검사
+  public function check_string($str, $options) {
+    global $g5;
+
+    $s = '';
+    for($i=0;$i<strlen($str);$i++) {
+      $c = $str[$i];
+      $oc = ord($c);
+
+      // 한글
+      if ($oc >= 0xA0 && $oc <= 0xFF) {
+        if ($options & G5_HANGUL) {
+          $s .= $c . $str[$i+1] . $str[$i+2];
+        }
+        $i+=2;
+      }
+      // 숫자
+      else if ($oc >= 0x30 && $oc <= 0x39) {
+        if ($options & G5_NUMERIC) {
+          $s .= $c;
+        }
+      }
+      // 영대문자
+      else if ($oc >= 0x41 && $oc <= 0x5A) {
+        if (($options & G5_ALPHABETIC) || ($options & G5_ALPHAUPPER)) {
+          $s .= $c;
+        }
+      }
+      // 영소문자
+      else if ($oc >= 0x61 && $oc <= 0x7A) {
+        if (($options & G5_ALPHABETIC) || ($options & G5_ALPHALOWER)) {
+          $s .= $c;
+        }
+      }
+      // 공백
+      else if ($oc == 0x20) {
+        if ($options & G5_SPACE) {
+          $s .= $c;
+        }
+      }
+      else {
+        if ($options & G5_SPECIAL) {
+          $s .= $c;
+        }
+      }
+    }
+
+    // 넘어온 값과 비교하여 같으면 참, 틀리면 거짓
+    return ($str == $s);
   }
 
   // http://htmlpurifier.org/
@@ -477,9 +643,9 @@ class Commonlib {
       $str2 .= "<a href=\"".G5_BBS_URL."/profile.php?mb_id=".$mb_id."\" onclick=\"win_profile(this.href); return false;\">자기소개</a>\n";
     if($bo_table) {
       if($mb_id) {
-        $str2 .= "<a href=\"".get_pretty_url($bo_table, '', "sca=".$sca."&amp;sfl=mb_id,1&amp;stx=".$en_mb_id)."\">아이디로 검색</a>\n";
+        $str2 .= "<a href=\"".$this->get_pretty_url($bo_table, '', "sca=".$sca."&amp;sfl=mb_id,1&amp;stx=".$en_mb_id)."\">아이디로 검색</a>\n";
       } else {
-        $str2 .= "<a href=\"".get_pretty_url($bo_table, '', "sca=".$sca."&amp;sfl=wr_name,1&amp;stx=".$name)."\">이름으로 검색</a>\n";
+        $str2 .= "<a href=\"".$this->get_pretty_url($bo_table, '', "sca=".$sca."&amp;sfl=wr_name,1&amp;stx=".$name)."\">이름으로 검색</a>\n";
       }
     }
     if($mb_id)
@@ -529,6 +695,73 @@ class Commonlib {
     $replace = "<b class=\"sch_word\">\\1</b>";
 
     return preg_replace("/($pattern)/i", $replace, $str);
+  }
+  public function check_html_link_nofollow($type=''){
+    return true;
+  }
+  // way.co.kr 의 wayboard 참고
+  public function url_auto_link($str) {
+    global $g5;
+    $config = $this->config;
+
+    // 140326 유창화님 제안코드로 수정
+    // http://sir.kr/pg_lecture/461
+    // http://sir.kr/pg_lecture/463
+    $attr_nofollow = ($this->check_html_link_nofollow('url_auto_link')) ? ' rel="nofollow"' : '';
+    $str = str_replace(array("&lt;", "&gt;", "&amp;", "&quot;", "&nbsp;", "&#039;"), array("\t_lt_\t", "\t_gt_\t", "&", "\"", "\t_nbsp_\t", "'"), $str);
+
+    $str = preg_replace("/([^(href=\"?'?)|(src=\"?'?)]|\(|^)((http|https|ftp|telnet|news|mms):\/\/[a-zA-Z0-9\.-]+\.[가-힣\xA1-\xFEa-zA-Z0-9\.:&#!=_\?\/~\+%@;\-\|\,\(\)]+)/i", "\\1<A HREF=\"\\2\" TARGET=\"{$config['cf_link_target']}\" $attr_nofollow>\\2</A>", $str);
+    $str = preg_replace("/(^|[\"'\s(])(www\.[^\"'\s()]+)/i", "\\1<A HREF=\"http://\\2\" TARGET=\"{$config['cf_link_target']}\" $attr_nofollow>\\2</A>", $str);
+    $str = preg_replace("/[0-9a-z_-]+@[a-z0-9._-]{4,}/i", "<a href=\"mailto:\\0\" $attr_nofollow>\\0</a>", $str);
+    $str = str_replace(array("\t_nbsp_\t", "\t_lt_\t", "\t_gt_\t", "'"), array("&nbsp;", "&lt;", "&gt;", "&#039;"), $str);
+
+    return run_replace('url_auto_link', $str);
+  }
+
+  // 내용을 변환
+  function conv_content($content, $html, $filter=true) {
+    global $board;
+    $config = $this->config;
+    if ($html) {
+        $source = array();
+        $target = array();
+
+        $source[] = "//";
+        $target[] = "";
+
+        if ($html == 2) { // 자동 줄바꿈
+            $source[] = "/\n/";
+            $target[] = "<br/>";
+        }
+
+        // 테이블 태그의 개수를 세어 테이블이 깨지지 않도록 한다.
+        $table_begin_count = substr_count(strtolower($content), "<table");
+        $table_end_count = substr_count(strtolower($content), "</table");
+        for ($i=$table_end_count; $i<$table_begin_count; $i++)
+        {
+            $content .= "</table>";
+        }
+
+        $content = preg_replace($source, $target, $content);
+
+        if($filter)
+            $content = $this->html_purifier($content);
+    }
+    else // text 이면
+    {
+        // & 처리 : &amp; &nbsp; 등의 코드를 정상 출력함
+        $content = $this->html_symbol($content);
+
+        // 공백 처리
+    //$content = preg_replace("/  /", "&nbsp; ", $content);
+    $content = str_replace("  ", "&nbsp; ", $content);
+    $content = str_replace("\n ", "\n&nbsp;", $content);
+
+        $content = $this->get_text($content, 1);
+        $content = $this->url_auto_link($content);
+    }
+
+    return $content;
   }
 
   // 게시물 정보($write_row)를 출력하기 위하여 $list로 가공된 정보를 복사 및 가공
@@ -648,6 +881,10 @@ class Commonlib {
       $list['icon_file'] = '<i class="fa fa-download" aria-hidden="true"></i> ';
 
     return $list;
+  }
+  // get_list 의 alias
+  public function get_view($write_row, $board, $skin_url) {
+    return $this->get_list($write_row, $board, $skin_url, 255);
   }
   // 게시판 테이블에서 하나의 행을 읽음
   public function get_write($write_table, $wr_id, $is_cache=false) {
@@ -917,6 +1154,16 @@ class Commonlib {
     return $str;
   }
 
+  public function sql_num_rows($result) {
+    return $res->fetchColumn();
+  }
+  // $result에 대한 메모리(memory)에 있는 내용을 모두 제거한다.
+  // sql_free_result()는 결과로부터 얻은 질의 값이 커서 많은 메모리를 사용할 염려가 있을 때 사용된다.
+  // 단, 결과 값은 스크립트(script) 실행부가 종료되면서 메모리에서 자동적으로 지워진다.
+  public function sql_free_result($result) {
+    $result->closeCursor();
+  }
+  
 
   // 검색어 특수문자 제거
   public function get_search_string($stx){
@@ -1217,7 +1464,7 @@ class Commonlib {
   // 회원 정보를 얻는다.
   public function get_member($mb_id, $fields='*', $is_cache=false) {
     global $g5;
-    $row = $this->sql_fetch("SELECT ? FROM {$g5['member_table']} where mb_id = TRIM(?)", [$fields, $mb_id]);
+    $row = $this->sql_fetch("SELECT {$fields} FROM {$g5['member_table']} where mb_id = TRIM(?)", [$mb_id]);
     return $row;
   }
 
@@ -1454,7 +1701,44 @@ class Commonlib {
     return $key;
   }
 
+  // 토큰 생성
+  public function _token() {
+    return md5(uniqid(rand(), true));
+  }
 
+
+  // 불법접근을 막도록 토큰을 생성하면서 토큰값을 리턴
+  public function get_token() {
+    $token = md5(uniqid(rand(), true));
+    $this->set_session('ss_token', $token);
+
+    return $token;
+  }
+  // POST로 넘어온 토큰과 세션에 저장된 토큰 비교
+  public function check_token() {
+    $this->set_session('ss_token', '');
+    return true;
+  }
+
+  public function check_mail_bot($ip=''){
+    //아이피를 체크하여 메일 크롤링을 방지합니다.
+    $check_ips = array('211.249.40.');
+    $bot_message = 'bot 으로 판단되어 중지합니다.';
+    
+    if($ip){
+      foreach( $check_ips as $c_ip ){
+        if( preg_match('/^'.preg_quote($c_ip).'/', $ip) ) {
+          die($bot_message);
+        }
+      }
+    }
+
+    // user agent를 체크하여 메일 크롤링을 방지합니다.
+    $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : '';
+    if ($user_agent === 'Carbon' || strpos($user_agent, 'BingPreview') !== false || strpos($user_agent, 'Slackbot') !== false) { 
+      die($bot_message);
+    } 
+  }
   public function unset_data($data) { //권한이 없는 사용자들에게 노출되면 안되는 그누보드 내용
     if(!$this->is_admin) {
       unset($data['cf_icode_id']);

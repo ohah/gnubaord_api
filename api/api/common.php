@@ -62,7 +62,8 @@ trait common {
     ini_set("session.gc_divisor", 100); // session.gc_divisor는 session.gc_probability와 결합하여 각 세션 초기화 시에 gc(쓰레기 수거) 프로세스를 시작할 확률을 정의합니다. 확률은 gc_probability/gc_divisor를 사용하여 계산합니다. 즉, 1/100은 각 요청시에 GC 프로세스를 시작할 확률이 1%입니다. session.gc_divisor의 기본값은 100입니다.
 
     session_set_cookie_params(0, '/');
-    ini_set("session.cookie_domain", G5_COOKIE_DOMAIN);
+    //ini_set("session.cookie_domain", G5_COOKIE_DOMAIN);
+    ini_set("session.cookie_domain", API_URL);
 
     //==============================================================================
     // 공용 변수
@@ -319,6 +320,20 @@ trait common {
     }
 
     return $array;
+  }
+  // SQL Injection 대응 문자열 필터링
+  public function sql_escape_string($str) {
+    if(defined('G5_ESCAPE_PATTERN') && defined('G5_ESCAPE_REPLACE')) {
+      $pattern = G5_ESCAPE_PATTERN;
+      $replace = G5_ESCAPE_REPLACE;
+
+      if($pattern)
+        $str = preg_replace($pattern, $replace, $str);
+    }
+
+    $str = call_user_func('addslashes', $str);
+
+    return $str;
   }
 
 }

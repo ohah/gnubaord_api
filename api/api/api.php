@@ -17,13 +17,14 @@ function api_g5_path() {
   $host = preg_replace("/[\<\>\'\"\\\'\\\"\%\=\(\)\/\^\*]/", '', $host); 
   $result['url'] = $http.$host.$port.$user.$root; 
   $result['api'] = $result['path'];
-  $result['url'] = str_replace('/api/api', '', $result['url']);
+  $result['url'] = str_replace('/api/api', '/api', $result['url']);
   $result['path'] = str_replace('/api/api', '', $result['path']);
   return $result;
 }
 $g5_path = api_g5_path();
 require "../config.php";
 define('API_PATH', $g5_path['api']);
+define('API_URL', $g5_path['url']);
 define('API_LIB_PATH', API_PATH.'/lib/');
 unset($g5_path);
 require G5_PATH."/data/dbconfig.php";
@@ -48,6 +49,20 @@ class Gnuboard_api extends commonlib {
     nbf: 활성시간(이 시간 후에 토큰 기능이 활성화 된다) type: NumericDate 
     iat: 생성시간
     jti: 고유키
+  */
+  //public $api_limit = 1;
+  /*
+  public function __construct() {
+    $ip = $_SERVER['REMOTE_ADDR'];
+    $name = md5('api_limit_'.$ip);
+    $cnt = $this->get_session($name);
+    if($cnt && $cnt >= $this->api_limit) {
+      $this->alert('야잇');
+    }
+    if(!$cnt) $this->set_session($name, 0);
+    else $this->set_session($name, $cnt++);
+    echo $cnt."??";
+  }
   */
   public function Login($mb_id, $mb_password) {
     global $g5;

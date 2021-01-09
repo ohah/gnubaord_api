@@ -7,16 +7,14 @@ trait write_update{
     $write_table = $g5['write_prefix'].$bo_table;
     $board = $this->sql_fetch("SELECT count(*) cnt FROM {$g5['board_table']} WHERE bo_table = ?",[$bo_table]); //보드 설정
     if($board['cnt'] == 0) {
-      echo $this->msg('존재하지 않는 게시판ID입니다');
-      exit;
+      $this->alert('존재하지 않는 게시판ID입니다');
     }
-    $board = $this->sql_fetch("SELECT * FROM {$g5['board_table']} WHERE bo_table = ?",[$bo_table]); //보드 설정    
+    $board = $this->get_board_db($bo_table);
     
     if($board['bo_use_category']) {
       $ca_name = trim($_POST['ca_name']);
       if(!$ca_name) {
-        echo $this->msg('분류를 선택하세요');
-        exit;
+        $this->alert('분류를 선택하세요');
       } else {
         $categories = array_map('trim', explode("|", $board['bo_category_list'].($this->is_admin ? '|공지' : '')));
         if(!empty($categories) && !in_array($ca_name, $categories)) {
@@ -36,8 +34,7 @@ trait write_update{
       $wr_subject = preg_replace("#[\\\]+$#", "", $wr_subject);
     }
     if ($wr_subject == '') {
-      echo $this->msg('제목을 입력하세요.');
-      exit;
+      $this->alert('제목을 입력하세요.');
     }
     $wr_content = '';
     if (isset($_POST['wr_content'])) {
@@ -45,8 +42,7 @@ trait write_update{
       $wr_content = preg_replace("#[\\\]+$#", "", $wr_content);
     }
     if ($wr_content == '') {
-      echo $this->msg('내용을 입력하세요.');
-      exit;
+      $this->alert('내용을 입력하세요.');
     }
     $wr_link1 = '';
     if (isset($_POST['wr_link1'])) {
@@ -62,26 +58,23 @@ trait write_update{
     }
     // 090710
     if (substr_count($wr_content, '&#') > 50) {
-      echo $this->msg('내용에 올바르지 않은 코드가 다수 포함되어 있습니다.');
-      exit;
+      $this->alert('내용에 올바르지 않은 코드가 다수 포함되어 있습니다.');
     }
     $upload_max_filesize = ini_get('upload_max_filesize');
     if (empty($_POST)) {
-      echo $this->msg("파일 또는 글내용의 크기가 서버에서 설정한 값을 넘어 오류가 발생하였습니다.\r\npost_max_size=".ini_get('post_max_size')." , upload_max_filesize=".$upload_max_filesize."\r\n게시판관리자 또는 서버관리자에게 문의 바랍니다.");      
+      $this->alert("파일 또는 글내용의 크기가 서버에서 설정한 값을 넘어 오류가 발생하였습니다.\r\npost_max_size=".ini_get('post_max_size')." , upload_max_filesize=".$upload_max_filesize."\r\n게시판관리자 또는 서버관리자에게 문의 바랍니다.");      
     }
 
     $notice_array = explode(",", $board['bo_notice']);
     if ($w == 'u' || $w == 'r') {
       $wr = $this->sql_fetch("SELECT * FROM {$write_table} WHERE wr_id = ?", [$wr_id]);
       if (!$wr['wr_id']) {
-        echo $this->msg("글이 존재하지 않습니다.\r\n글이 삭제되었거나 이동하였을 수 있습니다.");
-        exit;
+        $this->alert("글이 존재하지 않습니다.\r\n글이 삭제되었거나 이동하였을 수 있습니다.");
       }
     }
     // 외부에서 글을 등록할 수 있는 버그가 존재하므로 비밀글은 사용일 경우에만 가능해야 함
     if (!$this->is_admin && !$board['bo_use_secret'] && (stripos($_POST['html'], 'secret') !== false || stripos($_POST['secret'], 'secret') !== false || stripos($_POST['mail'], 'secret') !== false)) {
-      echo $this->msg('비밀글 미사용 게시판 이므로 비밀글로 등록할 수 없습니다.');
-      exit;
+      $this->alert('비밀글 미사용 게시판 이므로 비밀글로 등록할 수 없습니다.');
     }
 
     $secret = '';
@@ -121,8 +114,7 @@ trait write_update{
     if ($w == '' || $w == 'u') {
       // 외부에서 글을 등록할 수 있는 버그가 존재하므로 공지는 관리자만 등록이 가능해야 함
       if (!$this->is_admin && $notice) {
-        echo $this->msg('관리자만 공지할 수 있습니다.');
-        exit;
+        $this->alert('관리자만 공지할 수 있습니다.');
       }
       //회원 자신이 쓴글을 수정할 경우 공지가 풀리는 경우가 있음 
       if($w =='u' && !$is_admin && $board['bo_notice'] && in_array($wr['wr_id'], $notice_array)){
@@ -132,24 +124,21 @@ trait write_update{
       if($w =='u' && $this->member['mb_id'] && $wr['mb_id'] === $this->member['mb_id']) {
         ;
       } else if ($this->member['mb_level'] < $board['bo_write_level']) {
-        //echo $this->msg('글을 쓸 권한이 없습니다.');
+        //$this->alert('글을 쓸 권한이 없습니다.');
         exit;
       }
     } else if ($w == 'r') {
       if (in_array((int)$wr_id, $notice_array)) {
-        echo $this->msg('공지에는 답변 할 수 없습니다.');
-        exit;
+        $this->alert('공지에는 답변 할 수 없습니다.');
       }
       if ($this->member['mb_level'] < $board['bo_reply_level']) {
-        echo $this->msg('글을 답변할 권한이 없습니다.');
-        exit;
+        $this->alert('글을 답변할 권한이 없습니다.');
       }
       // 게시글 배열 참조
       $reply_array = &$wr;
       // 최대 답변은 테이블에 잡아놓은 wr_reply 사이즈만큼만 가능합니다.
       if (strlen($reply_array['wr_reply']) == 10) {
-        echo $this->msg("더 이상 답변하실 수 없습니다.\\n답변은 10단계 까지만 가능합니다.");
-        exit;
+        $this->alert("더 이상 답변하실 수 없습니다.\\n답변은 10단계 까지만 가능합니다.");
       }
       $reply_len = strlen($reply_array['wr_reply']) + 1;
       if ($board['bo_reply_order']) {
@@ -173,35 +162,30 @@ trait write_update{
       if (!$row['reply']) {
         $reply_char = $begin_reply_char;
       } else if ($row['reply'] == $end_reply_char) { // A~Z은 26 입니다.
-        echo $this->msg("더 이상 답변하실 수 없습니다.\\n답변은 26개 까지만 가능합니다.");
-        exit;
+        $this->alert("더 이상 답변하실 수 없습니다.\\n답변은 26개 까지만 가능합니다.");
       } else {
         $reply_char = chr(ord($row['reply']) + $reply_number);
       }
       $reply = $reply_array['wr_reply'] . $reply_char;
     } else {
-      echo $this->msg('w 값이 제대로 넘어오지 않았습니다.');
-      exit;
+      $this->alert('w 값이 제대로 넘어오지 않았습니다.');      
     }
     
     $is_use_captcha = ((($board['bo_use_captcha'] && $w !== 'u') || $this->is_guest) && !$this->is_admin) ? 1 : 0;
     if ($is_use_captcha && !$this->chk_captcha()) {
-      echo $this->msg('자동등록방지 숫자가 틀렸습니다.');
-      //exit;
+      $this->alert('자동등록방지 숫자가 틀렸습니다.');
     }
 
     if ($w == '' || $w == 'r') {
       if (isset($_SESSION['ss_datetime'])) {
         if ($_SESSION['ss_datetime'] >= (G5_SERVER_TIME - $config['cf_delay_sec']) && !$this->is_admin) {
-          echo $this->msg('너무 빠른 시간내에 게시물을 연속해서 올릴 수 없습니다.');
-          exit;
+          $this->alert('너무 빠른 시간내에 게시물을 연속해서 올릴 수 없습니다.');          
         }
       }
       $this->set_session("ss_datetime", G5_SERVER_TIME);
     }
     if (!isset($_POST['wr_subject']) || !trim($_POST['wr_subject'])) {
-      echo $this->msg('제목을 입력하여 주십시오.');
-      exit;
+      $this->alert('제목을 입력하여 주십시오.');
     }
     $wr_seo_title = $this->exist_seo_title_recursive('bbs', $this->generate_seo_title($wr_subject), $write_table, $wr_id);
 
@@ -217,7 +201,7 @@ trait write_update{
         // 비회원의 경우 이름이 누락되는 경우가 있음
         $wr_name = $this->clean_xss_tags(trim($_POST['wr_name']));
         if (!$wr_name) {
-          echo $this->msg('이름은 필히 입력하셔야 합니다.');
+          $this->alert('이름은 필히 입력하셔야 합니다.');
           //exit;
         }
         $wr_password = $this->get_encrypt_string($wr_password);
@@ -296,38 +280,32 @@ trait write_update{
       } 
     } else if ($w == 'u') { // 글 수정
       if ($this->get_session('ss_bo_table') != $_POST['bo_table'] || $this->get_session('ss_wr_id') != $_POST['wr_id']) {
-        //echo $this->msg('올바른 방법으로 수정하여 주십시오.');
-        //exit;
+        //$this->alert('올바른 방법으로 수정하여 주십시오.');
       }
       if ($this->is_admin == 'super'){ // 최고관리자 통과
         ;
       }else if ($this->is_admin == 'group') { // 그룹관리자
         $mb = $this->get_member($write['mb_id']);
         if ($member['mb_id'] != $group['gr_admin']) {// 자신이 관리하는 그룹인가?
-          $this->msg('자신이 관리하는 그룹의 게시판이 아니므로 수정할 수 없습니다.');
-          exit;
+          $this->alert('자신이 관리하는 그룹의 게시판이 아니므로 수정할 수 없습니다.');
         } else if ($member['mb_level'] < $mb['mb_level']) {// 자신의 레벨이 크거나 같다면 통과
-          $this->msg('자신의 권한보다 높은 권한의 회원이 작성한 글은 수정할 수 없습니다.');
-          exit;
+          $this->alert('자신의 권한보다 높은 권한의 회원이 작성한 글은 수정할 수 없습니다.');
         }
       } else if ($this->is_admin == 'board') { // 게시판관리자이면
         $mb = $this->get_member($write['mb_id']);
         if ($member['mb_id'] != $board['bo_admin']) {// 자신이 관리하는 게시판인가?
-          $this->msg('자신이 관리하는 게시판이 아니므로 수정할 수 없습니다.', $return_url);
-          exit;
+          $this->alert('자신이 관리하는 게시판이 아니므로 수정할 수 없습니다.', $return_url);
         }
-        else if ($member['mb_level'] < $mb['mb_level']) // 자신의 레벨이 크거나 같다면 통과
-          $this->msg('자신의 권한보다 높은 권한의 회원이 작성한 글은 수정할 수 없습니다.');
-          exit;
+        else if ($member['mb_level'] < $mb['mb_level']) { // 자신의 레벨이 크거나 같다면 통과
+          $this->alert('자신의 권한보다 높은 권한의 회원이 작성한 글은 수정할 수 없습니다.');
+        }
       } else if ($member['mb_id']) {
         if ($member['mb_id'] != $write['mb_id']) {
-          $this->msg('자신의 글이 아니므로 수정할 수 없습니다.');
-          exit;
+          $this->alert('자신의 글이 아니므로 수정할 수 없습니다.');
         }
       } else {
         if ($write['mb_id']) {
-          $this->msg('로그인 후 수정하세요.');
-          exit;
+          $this->alert('로그인 후 수정하세요.');
         }
       }
       
@@ -356,7 +334,7 @@ trait write_update{
       } else {
         $mb_id = "";
         // 비회원의 경우 이름이 누락되는 경우가 있음
-        if (!trim($wr_name)) alert("이름은 필히 입력하셔야 합니다.");
+        if (!trim($wr_name)) $this->alert("이름은 필히 입력하셔야 합니다.");
         $wr_name = trim($_POST['wr_name']);
         $wr_email = $this->get_email_address(trim($_POST['wr_email']));
       }
@@ -420,13 +398,11 @@ trait write_update{
         if($w == 'u') {
           $file = $this->get_file($bo_table, $wr_id);
           if($file_count && (int)$file['count'] > $board['bo_upload_count']) {
-            echo $this->msg('기존 파일을 삭제하신 후 첨부파일을 '.number_format($board['bo_upload_count']).'개 이하로 업로드 해주십시오.');
-            exit;
+            $this->alert('기존 파일을 삭제하신 후 첨부파일을 '.number_format($board['bo_upload_count']).'개 이하로 업로드 해주십시오.');
           }
         } else {
           if($file_count > $board['bo_upload_count']) {
-            echo $this->msg('첨부파일을 '.number_format($board['bo_upload_count']).'개 이하로 업로드 해주십시오.');
-            exit;
+            $this->alert('첨부파일을 '.number_format($board['bo_upload_count']).'개 이하로 업로드 해주십시오.');
           }
         }
 
@@ -439,7 +415,6 @@ trait write_update{
         // 가변 파일 업로드
         $file_upload_msg = '';
         $upload = array();
-
 
         if(isset($_FILES['bf_file']['name']) && is_array($_FILES['bf_file']['name'])) {
           for ($i=0; $i<count($_FILES['bf_file']['name']); $i++) {
@@ -566,7 +541,7 @@ trait write_update{
           $bf_height = isset($upload[$i]['image'][1]) ? (int) $upload[$i]['image'][1] : 0;
           $bf_type = isset($upload[$i]['image'][2]) ? (int) $upload[$i]['image'][2] : 0;
 
-          $row = sql_fetch("SELECT count(*) as cnt FROM {$g5['board_file_table']} WHERE bo_table = '{$bo_table}' AND wr_id = '{$wr_id}' AND bf_no = '{$i}' ");
+          $row = $this->sql_fetch("SELECT count(*) as cnt FROM {$g5['board_file_table']} WHERE bo_table = '{$bo_table}' AND wr_id = '{$wr_id}' AND bf_no = '{$i}' ");
           $row = $this->sql_fetch("SELECT count(*) as cnt FROM {$g5['board_file_table']} WHERE bo_table = '{$bo_table}' AND wr_id = '{$wr_id}' AND bf_no = '{$i}'", [$bo_table, $wr_id, $i]);
           if ($row['cnt']) {
             // 삭제에 체크가 있거나 파일이 있다면 업데이트를 합니다.
@@ -659,11 +634,11 @@ trait write_update{
 
           $tmp_html = 0;
           if (strstr($html, 'html1'))
-              $tmp_html = 1;
+            $tmp_html = 1;
           else if (strstr($html, 'html2'))
-              $tmp_html = 2;
+            $tmp_html = 2;
 
-          $wr_content = conv_content(conv_unescape_nl(stripslashes($wr_content)), $tmp_html);
+          $wr_content = $this->conv_content($this->conv_unescape_nl(stripslashes($wr_content)), $tmp_html);
 
           $warr = array( ''=>'입력', 'u'=>'수정', 'r'=>'답변', 'c'=>'코멘트', 'cu'=>'코멘트 수정' );
           $str = $warr[$w];
@@ -671,8 +646,6 @@ trait write_update{
           $subject = '['.$config['cf_title'].'] '.$board['bo_subject'].' 게시판에 '.$str.'글이 올라왔습니다.';
 
           $link_url = $this->get_pretty_url($bo_table, $wr_id, $qstr);
-
-          include_once(G5_LIB_PATH.'/mailer.lib.php');
 
           ob_start();
           include_once ('./write_update_mail.php');
@@ -697,18 +670,18 @@ trait write_update{
 
           // 옵션에 메일받기가 체크되어 있고, 게시자의 메일이 있다면
           if (strstr($wr['wr_option'], 'mail') && $wr['wr_email'])
-              $array_email[] = $wr['wr_email'];
+            $array_email[] = $wr['wr_email'];
 
           // 중복된 메일 주소는 제거
           $unique_email = array_unique($array_email);
           $unique_email = run_replace('write_update_mail_list', array_values($unique_email), $board, $wr_id);
 
           for ($i=0; $i<count($unique_email); $i++) {
-            mailer($wr_name, $wr_email, $unique_email[$i], $subject, $content, 1);
+            $this->mailer($wr_name, $wr_email, $unique_email[$i], $subject, $content, 1);
           }
         }
 
-        $this->delete_cache_latest($bo_table);
+        delete_cache_latest($bo_table);
 
         $redirect_url = run_replace('write_update_move_url', $this->short_url_clean(G5_HTTP_BBS_URL.'/board.php?bo_table='.$bo_table.'&amp;wr_id='.$wr_id.$qstr), $board, $wr_id, $w, $qstr, $file_upload_msg);
 
