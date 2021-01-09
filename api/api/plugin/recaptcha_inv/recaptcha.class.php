@@ -32,7 +32,7 @@ if ( ! class_exists( 'ReCaptchaResponse_v' ) ){
     }
 }
 
-class ReCaptcha_GNU
+class ReCaptcha_inv_GNU
 {
     /**
      * Version of this client library.

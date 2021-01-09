@@ -20,7 +20,7 @@ trait recaptcha_inv {
         $config = $this->config;
         $resp = null;
         if ( isset($_POST["g-recaptcha-response"]) && !empty($_POST["g-recaptcha-response"]) ) {
-            $reCaptcha = new ReCaptcha_GNU( $config['cf_recaptcha_secret_key'] );
+            $reCaptcha = new ReCaptcha_inv_GNU( $config['cf_recaptcha_secret_key'] );
             $resp = $reCaptcha->verify($_POST["g-recaptcha-response"], $_SERVER["REMOTE_ADDR"]);
         }
         if( ! $resp ){
