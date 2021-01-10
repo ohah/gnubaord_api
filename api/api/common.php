@@ -1,4 +1,7 @@
 <?php 
+//echo API_PATH;
+require API_PATH.'/../jwt/autoload.php';
+use Firebase\JWT\JWT;
 trait common {
   public $dsn = "mysql:host=".G5_MYSQL_HOST.";port=3306;dbname=".G5_MYSQL_DB.";charset=utf8";
   public $db;
@@ -71,13 +74,13 @@ trait common {
     // 기본환경설정
     // 기본적으로 사용하는 필드만 얻은 후 상황에 따라 필드를 추가로 얻음
 
-    $this->config = $this->sql_fetch("SELECT * FROM {$g5['config_table']}"); //그누보드 설정
+    $this->config = $this->get_config(); //그누보드 설정
     $this->config['cf_captcha'] = $this->config['cf_captcha'] ? $this->config['cf_captcha'] : 'kcaptcha';
     if(isset($_COOKIE[$this->cookiename])) {
       $decoded = JWT::decode($_COOKIE[$this->cookiename], $this->key, array('HS256')); //로그인 여부
       $mb_id = $decoded->aud;
-      $this->member = $this->sql_fetch("SELECT * FROM {$g5['member_table']} WHERE mb_id = ?", [$mb_id]); //회원정보 설정
-      $this->this->is_admin = $this->this->is_admin($mb_id);
+      $this->member = $this->get_member($mb_id); //회원정보 설정
+      $this->is_admin = $this->is_admin($mb_id);
       $this->is_member = true;
       $this->is_guest = false;
     }else {

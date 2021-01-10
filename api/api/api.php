@@ -67,26 +67,26 @@ class Gnuboard_api extends commonlib {
   public function Login($mb_id, $mb_password) {
     global $g5;
     if (!$mb_id || !$mb_password) $this->msg('회원아이디나 비밀번호가 공백이면 안됩니다.');
-    $mb = $this->sql_fetch("SELECT * FROM {$g5['member_table']} WHERE mb_id = ?",[$mb_id]);
+    $mb = $this->get_member($mb_id);
     if(!$this->login_password_check($mb, $mb_password, $mb['mb_password'])) {  //비밀번호가 다르면
-      echo $this->msg('가입된 회원아이디가 아니거나 비밀번호가 틀립니다.\r\n비밀번호는 대소문자를 구분합니다.');
+      $this->alert('가입된 회원아이디가 아니거나 비밀번호가 틀립니다.\r\n비밀번호는 대소문자를 구분합니다.');
     }
     // 차단된 아이디인가?
     if ($mb['mb_intercept_date'] && $mb['mb_intercept_date'] <= date("Ymd", G5_SERVER_TIME)) {
       $date = preg_replace("/([0-9]{4})([0-9]{2})([0-9]{2})/", "\\1년 \\2월 \\3일", $mb['mb_intercept_date']);
-      echo $this->msg('회원님의 아이디는 접근이 금지되어 있습니다.\n처리일 : '.$date);
+      $this->alert('회원님의 아이디는 접근이 금지되어 있습니다.\n처리일 : '.$date);
     }
     // 탈퇴한 아이디인가?
     if ($mb['mb_leave_date'] && $mb['mb_leave_date'] <= date("Ymd", G5_SERVER_TIME)) {
       $date = preg_replace("/([0-9]{4})([0-9]{2})([0-9]{2})/", "\\1년 \\2월 \\3일", $mb['mb_leave_date']);
-      echo $this->msg('탈퇴한 아이디이므로 접근하실 수 없습니다.\n탈퇴일 : '.$date);
+      $this->alert('탈퇴한 아이디이므로 접근하실 수 없습니다.\n탈퇴일 : '.$date);
     }
     // 메일인증 설정이 되어 있다면
     $config = $this->config;
     $this->is_use_email_certify($config);
     if ( $this->is_use_email_certify($config) && !preg_match("/[1-9]/", $mb['mb_email_certify'])) {
       $ckey = md5($mb['mb_ip'].$mb['mb_datetime']);
-      echo $this->msg('이메일 인증을 받으셔야 로그인이 가능합니다');
+      $this->alert('이메일 인증을 받으셔야 로그인이 가능합니다');
     }    
     if($this->login_password_check($mb, $mb_password, $mb['mb_password'])) {  //비밀번호가 같으면 
       $payload = array(
