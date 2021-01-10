@@ -26,7 +26,7 @@ trait scrap {
     $sql_order = " order by ms_id desc ";
 
     $sql = " select count(*) as cnt $sql_common ";
-    $row = sql_fetch($sql);
+    $row = $this->sql_fetch($sql);
     $total_count = $row['cnt'];
 
     $rows = $config['cf_page_rows'];
@@ -58,7 +58,7 @@ trait scrap {
       $tmp_write_table = $g5['write_prefix'] . $row['bo_table'];
       $sql3 = " select wr_subject from $tmp_write_table where wr_id = ?";
       $row3 = $this->sql_fetch($sql3, [$row['wr_id']]);
-      $subject = get_text(cut_str($row3['wr_subject'], 100));
+      $subject = $this->get_text($this->cut_str($row3['wr_subject'], 100));
       if (!$row3['wr_subject'])
         $row3['wr_subject'] = '[글 없음]';
 
@@ -145,23 +145,23 @@ trait scrap {
         $row = $this->sql_fetch($sql, [$wr_id, '1']);
         $row['max_comment'] += 1;
 
-        $sql = " insert into $write_table
-                    set ca_name = '{$wr['ca_name']}',
-                        wr_option = '',
-                        wr_num = '{$wr['wr_num']}',
-                        wr_reply = '',
-                        wr_parent = '$wr_id',
-                        wr_is_comment = '1',
-                        wr_comment = '{$row['max_comment']}',
-                        wr_content = '$wr_content',
-                        mb_id = '$mb_id',
-                        wr_password = '$wr_password',
-                        wr_name = '$wr_name',
-                        wr_email = '$wr_email',
-                        wr_homepage = '$wr_homepage',
-                        wr_datetime = '".G5_TIME_YMDHIS."',
-                        wr_ip = '{$_SERVER['REMOTE_ADDR']}' ";
-        $this->sql_query($sql);
+        $sql = "insert into $write_table
+                set ca_name = ?,
+                    wr_option = '',
+                    wr_num = ?,
+                    wr_reply = '',
+                    wr_parent = ?,
+                    wr_is_comment = '1',
+                    wr_comment = ?,
+                    wr_content = ?,
+                    mb_id = ?,
+                    wr_password = ?,
+                    wr_name = ?,
+                    wr_email = ?,
+                    wr_homepage = ?,
+                    wr_datetime = ?',
+                    wr_ip = '{$_SERVER['REMOTE_ADDR']}' ";
+        $this->sql_query($sql, [$wr['ca_name'], $wr['wr_num'], $wr_id, '1', $row['max_comment'], $wr_content, $mb_id, $wr_password, $wr_name, $wr_email, $wr_homepage, G5_TIME_YMDHIS, $_SERVER['REMOTE_ADDR']]);
 
         $comment_id = $this->db->lastInsertId();
 

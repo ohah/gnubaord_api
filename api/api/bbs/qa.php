@@ -257,12 +257,12 @@ trait qa {
     $rows = 10;
     $sql = " select *
                 from {$g5['qa_content_table']}
-                where qa_id <> '$qa_id'
-                  and qa_related = '{$view['qa_related']}'
-                  and qa_type = '0'
+                where qa_id <> ?
+                  and qa_related = ?
+                  and qa_type = ?
                 order by qa_num, qa_type
                 limit 0, $rows ";
-    $result = $this->sql_query($sql);
+    $result = $this->sql_query($sql, [$qa_id, $view['qa_related'], '0']);
 
     $rel_list = array();
     $rel_count = 0;
@@ -295,10 +295,10 @@ trait qa {
     $answer_delete_href = '';
     if(!$view['qa_type'] && $view['qa_status']) {
       $sql = " select *
-                  from {$g5['qa_content_table']}
-                  where qa_type = '1'
-                    and qa_parent = '{$view['qa_id']}' ";
-      $answer = $this->sql_fetch($sql);
+              from {$g5['qa_content_table']}
+              where qa_type = ?
+              and qa_parent = ?";
+      $answer = $this->sql_fetch($sql, ['1', $view['qa_id']]);
 
       if($is_admin) {
         $answer_update_href = G5_BBS_URL.'/qawrite.php?w=u&amp;qa_id='.$answer['qa_id'].$qstr;
@@ -413,7 +413,7 @@ trait qa {
     if(trim($qaconfig['qa_category'])) {
       $category = explode('|', $qaconfig['qa_category']);
       for($i=0; $i<count($category); $i++) {
-        $category_optionp[] = $this->option_selected($category[$i], $write['qa_category']);
+        $category_option[] = $this->option_selected($category[$i], $write['qa_category']);
       }
     } else {
       $this->alert('1:1문의 설정에서 분류를 설정해 주십시오');

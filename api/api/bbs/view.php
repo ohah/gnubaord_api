@@ -43,7 +43,7 @@ trait view {
       $sql = " select wr_id, wr_subject, wr_datetime from {$write_table} where wr_is_comment = 0 and wr_num = ? and wr_reply < ? {$sql_search} order by wr_num desc, wr_reply desc limit 1 ";
       $prev = $this->sql_fetch($sql, [$write['wr_num'], $write['wr_reply']]);
       // 위의 쿼리문으로 값을 얻지 못했다면
-      if (isset($prev['wr_id']) && !$prev['wr_id'])     {
+      if (isset($prev['wr_id']) && !$prev['wr_id']) {
         $sql = " select wr_id, wr_subject, wr_datetime from {$write_table} where wr_is_comment = ? and wr_num < ? {$sql_search} order by wr_num desc, wr_reply desc limit 1 ";
         $prev = $this->sql_fetch($sql, [0, $write['wr_num']]);
       }

@@ -82,7 +82,7 @@ class Gnuboard_api extends commonlib {
       echo $this->msg('탈퇴한 아이디이므로 접근하실 수 없습니다.\n탈퇴일 : '.$date);
     }
     // 메일인증 설정이 되어 있다면
-    $config = json_decode($this->get_config(), true);
+    $config = $this->config;
     $this->is_use_email_certify($config);
     if ( $this->is_use_email_certify($config) && !preg_match("/[1-9]/", $mb['mb_email_certify'])) {
       $ckey = md5($mb['mb_ip'].$mb['mb_datetime']);

@@ -2,8 +2,9 @@
 trait good {
   public function print_result($error, $count) {
     echo '{ "error": "' . $error . '", "count": "' . $count . '" }';
-    if($error)
+    if($error) {
       exit;
+    }
   }
   public function good($bo_table, $wr_id, $good) { 
     global $g5;

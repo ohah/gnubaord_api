@@ -34,6 +34,7 @@ $g5['social_profile_table'] = G5_TABLE_PREFIX.'member_social_profiles'; // 소�
 require 'jwt/autoload.php';
 require API_PATH.'/bbs/board.php';
 require API_PATH.'/bbs/email_certify.php';
+require API_PATH.'/bbs/download.php';
 require API_PATH.'/bbs/good.php';
 require API_PATH.'/bbs/qa.php';
 require API_PATH.'/bbs/password.php';
@@ -49,6 +50,7 @@ require API_PATH.'/bbs/scrap.php';
 require API_PATH.'/bbs/list.php';
 require API_PATH.'/bbs/profile.php';
 require API_PATH.'/bbs/delete.php';
+require API_PATH.'/bbs/db_table.optimize.php';
 require API_PATH.'/plugin/kcaptcha/kcaptcha.lib.php';
 require API_PATH.'/lib/latest.lib.php';
 require API_PATH.'/lib/register.lib.php';
@@ -79,6 +81,8 @@ class Commonlib {
   use write_comment_update;
   use profile;
   use delete;
+  use download;
+  use db_optimize;
   use search;
   use scrap;
   use bbs_list;
@@ -97,16 +101,16 @@ class Commonlib {
   }
   // 리퍼러 체크
   public function referer_check($url='') {
-      /*
-      // 제대로 체크를 하지 못하여 주석 처리함
-      global $g5;
+    /*
+    // 제대로 체크를 하지 못하여 주석 처리함
+    global $g5;
 
-      if (!$url)
-          $url = G5_URL;
+    if (!$url)
+        $url = G5_URL;
 
-      if (!preg_match("/^http['s']?:\/\/".$_SERVER['HTTP_HOST']."/", $_SERVER['HTTP_REFERER']))
-          alert("제대로 된 접근이 아닌것 같습니다.", $url);
-      */
+    if (!preg_match("/^http['s']?:\/\/".$_SERVER['HTTP_HOST']."/", $_SERVER['HTTP_REFERER']))
+        alert("제대로 된 접근이 아닌것 같습니다.", $url);
+    */
   }
 
   
@@ -404,7 +408,21 @@ class Commonlib {
     }
     return str_replace($source, $target, $str);
   }
+  // 쿠키변수 생성
+  function set_cookie($cookie_name, $value, $expire) {
+    global $g5;
+    setcookie(md5($cookie_name), base64_encode($value), G5_SERVER_TIME + $expire, '/', G5_COOKIE_DOMAIN);
+  }
 
+
+  // 쿠키변수값 얻음
+  public function get_cookie($cookie_name) {
+    $cookie = md5($cookie_name);
+    if (array_key_exists($cookie, $_COOKIE))
+      return base64_decode($_COOKIE[$cookie]);
+    else
+      return "";
+  }
   // url에 http:// 를 붙인다
   public function set_http($url) {
     if (!trim($url)) return;
@@ -568,6 +586,64 @@ class Commonlib {
   // 제목을 변환
   public function conv_subject($subject, $len, $suffix='') {
     return $this->get_text($this->cut_str($subject, $len, $suffix));
+  }
+
+  // 회원 삭제
+  public function member_delete($mb_id) {
+    $config = $this->config;
+    global $g5;
+
+    $sql = " select mb_name, mb_nick, mb_ip, mb_recommend, mb_memo, mb_level from {$g5['member_table']} where mb_id= ?";
+    $mb = $this->sql_fetch($sql, [$mb_id]);
+
+    // 이미 삭제된 회원은 제외
+    if(preg_match('#^[0-9]{8}.*삭제함#', $mb['mb_memo']))
+      return;
+
+    if ($mb['mb_recommend']) {
+      $row = sql_fetch(" select count(*) as cnt from {$g5['member_table']} where mb_id = '".addslashes($mb['mb_recommend'])."' ");
+      if ($row['cnt'])
+        $this->insert_point($mb['mb_recommend'], $config['cf_recommend_point'] * (-1), $mb_id.'님의 회원자료 삭제로 인한 추천인 포인트 반환', "@member", $mb['mb_recommend'], $mb_id.' 추천인 삭제');
+    }
+
+    // 회원자료는 정보만 없앤 후 아이디는 보관하여 다른 사람이 사용하지 못하도록 함 : 061025
+    $sql = " update {$g5['member_table']} set mb_password = '', mb_level = 1, mb_email = '', mb_homepage = '', mb_tel = '', mb_hp = '', mb_zip1 = '', mb_zip2 = '', mb_addr1 = '', mb_addr2 = '', mb_birth = '', mb_sex = '', mb_signature = '', mb_memo = '".date('Ymd', G5_SERVER_TIME)." 삭제함\n".sql_real_escape_string($mb['mb_memo'])."' where mb_id = '{$mb_id}' ";
+
+    $this->sql_query($sql);
+
+    // 포인트 테이블에서 삭제
+    $this->sql_query(" delete from {$g5['point_table']} where mb_id = ?",[$mb_id]);
+
+    // 그룹접근가능 삭제
+    $this->sql_query(" delete from {$g5['group_member_table']} where mb_id = ? ", [$mb_id]);
+
+    // 쪽지 삭제
+    $this->sql_query(" delete from {$g5['memo_table']} where me_recv_mb_id = ? or me_send_mb_id = ? ", [$mb_id, $mb_id]);
+
+    // 스크랩 삭제
+    $this->sql_query(" delete from {$g5['scrap_table']} where mb_id = ? ", [$mb_id]);
+
+    // 관리권한 삭제
+    $this->sql_query(" delete from {$g5['auth_table']} where mb_id = ? ", [$mb_id]);
+
+    // 그룹관리자인 경우 그룹관리자를 공백으로
+    $this->sql_query(" update {$g5['group_table']} set gr_admin = '' where gr_admin = ? ", [$mb_id]);
+
+    // 게시판관리자인 경우 게시판관리자를 공백으로
+    $this->sql_query(" update {$g5['board_table']} set bo_admin = '' where bo_admin = ? ", [$mb_id]);
+
+    //소셜로그인에서 삭제 또는 해제
+    if(function_exists('social_member_link_delete')){
+      social_member_link_delete($mb_id);
+    }
+
+    // 아이콘 삭제
+    @unlink(G5_DATA_PATH.'/member/'.substr($mb_id,0,2).'/'.$mb_id.'.gif');
+
+    // 프로필 이미지 삭제
+    @unlink(G5_DATA_PATH.'/member_image/'.substr($mb_id,0,2).'/'.$mb_id.'.gif');
+
+    run_event('member_delete_after', $mb_id);
   }
 
   // 회원 레이어

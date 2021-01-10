@@ -19,7 +19,7 @@ trait search {
     $is_guest = $this->$is_guest;
     $is_member = $this->is_member;
     
-    $search_table = Array();
+    $search_table = array();
     $table_index = 0;
     $write_pages = "";
     $text_stx = "";
@@ -192,17 +192,16 @@ trait search {
           $list[$idx][$i] = $row;
           $list[$idx][$i]['href'] = $this->get_pretty_url($search_table[$idx], $row['wr_parent']);
 
-          if ($row['wr_is_comment'])
-          {
-              $sql2 = "select wr_subject, wr_option from {$tmp_write_table} where wr_id = ?";
-              $row2 = sql_fetch($sql2, [$row['wr_parent']]);
-              //$row['wr_subject'] = $row2['wr_subject'];
-              $row['wr_subject'] = $this->get_text($row2['wr_subject']);
+          if ($row['wr_is_comment']) {
+            $sql2 = "select wr_subject, wr_option from {$tmp_write_table} where wr_id = ?";
+            $row2 = sql_fetch($sql2, [$row['wr_parent']]);
+            //$row['wr_subject'] = $row2['wr_subject'];
+            $row['wr_subject'] = $this->get_text($row2['wr_subject']);
           }
 
           // 비밀글은 검색 불가
           if (strstr($row['wr_option'].$row2['wr_option'], 'secret'))
-              $row['wr_content'] = '[비밀글 입니다.]';
+            $row['wr_content'] = '[비밀글 입니다.]';
 
           $subject = $this->get_text($row['wr_subject']);
           if (strstr($sfl, 'wr_subject'))
@@ -245,7 +244,6 @@ trait search {
     $group_select = array();
     $group_select[0]['name'] = '전체 분류';
     $group_select[0]['value'] = '';
-    $group_select = '<label for="gr_id" class="sound_only">게시판 그룹선택</label><select name="gr_id" id="gr_id" class="select"><option value="">전체 분류';
     $sql = " select gr_id, gr_subject from {$g5['group_table']} order by gr_id ";
     $result = $this->sql_query($sql);
     for ($i=0; $i<count($result); $i++) {

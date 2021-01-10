@@ -11,15 +11,15 @@ $router->get('/', function() use ($api) {
   echo "테스트 그누보드입니다.";
   //$api->sql_query();
 });
-$router->match('GET|POST', '/Auth/{mb_id}', function($mb_id) use ($api) {
+$router->match('GET|POST', '/Auth/{mb_id}', function($mb_id) use ($api) {  
   if(!$_POST['mb_password']) {
-    $api->msg('패스워드를 입력해주세요');
+    $api->alert('패스워드를 입력해주세요');
     exit;
   }
   $mb_password = $_POST['mb_password'];
   $api->Login($mb_id, $mb_password);
 });
-$router->match('GET', '/configs', function() use ($api){
+$router->match('GET', '/configs', function() use ($api) {
   echo json_encode($api->get_config(), JSON_UNESCAPED_UNICODE);
 });
 $router->mount('/contents', function() use ($router, $api) {
@@ -38,7 +38,7 @@ $router->mount('/faqs', function() use ($router, $api) {
     echo $api->get_faq($fa_id);
   });
 });
-$router->match('GET', '/faqsgroup/{fm_id}', function() use ($api){
+$router->match('GET', '/faqsgroup/{fm_id}', function() use ($api) {
   echo $api->get_faq_group($fa_id);
 });
 $router->match('GET', '/groups', function() use ($api){
@@ -241,4 +241,7 @@ $router->mount('/captcha', function() use ($router, $api) {
   });
 });
 
+$router->match('GET', '/download/{no}', function($no) use ($router, $api) {
+  $api->download($no);
+});
 $router->run();

@@ -206,25 +206,31 @@ trait KCAPTCHA {
 				imagesetpixel($img2, $x, $y, imagecolorallocate($img2, $newred, $newgreen, $newblue));
 			}
 		}
-    /*
-		header('Expires: Mon, 26 Jul 1997 05:00:00 GMT');
-		header('Cache-Control: no-store, no-cache, must-revalidate');
-		header('Cache-Control: post-check=0, pre-check=0', FALSE);
-		header('Pragma: no-cache');
-    */
 		if(function_exists("imagejpeg")){
+      header('Expires: Mon, 26 Jul 1997 05:00:00 GMT');
+      header('Cache-Control: no-store, no-cache, must-revalidate');
+      header('Cache-Control: post-check=0, pre-check=0', FALSE);
+      header('Pragma: no-cache');
       header("Content-Type: image/jpeg");
       //ob_start();
 			imagejpeg($img2, null, $jpeg_quality);
       //$bin = ob_get_clean();
       //return $b64 = base64_encode($bin);
 		}else if(function_exists("imagegif")){
+      header('Expires: Mon, 26 Jul 1997 05:00:00 GMT');
+      header('Cache-Control: no-store, no-cache, must-revalidate');
+      header('Cache-Control: post-check=0, pre-check=0', FALSE);
+      header('Pragma: no-cache');
 			header("Content-Type: image/gif");
       //ob_start();
       imagegif($img2);
       //$bin = ob_get_clean();
       //return $b64 = base64_encode($bin);
 		}else if(function_exists("imagepng")){
+      header('Expires: Mon, 26 Jul 1997 05:00:00 GMT');
+      header('Cache-Control: no-store, no-cache, must-revalidate');
+      header('Cache-Control: post-check=0, pre-check=0', FALSE);
+      header('Pragma: no-cache');
       header("Content-Type: image/x-png");
 			//ob_start();
       imagepng($img2);

@@ -5,7 +5,7 @@
 trait write {
   public function write($bo_table, $wr_id = null, $w = '') {
     global $g5;
-    $write_table = $g5['write_prefix'] . $bo_table;
+    $write_table = $g5['write_prefix'].$bo_table;
     $write = $this->get_write($write_table, $wr_id);
     $member = $this->member;
     $is_admin = $this->is_admin;
@@ -18,7 +18,7 @@ trait write {
       $this->alert('존재하지 않는 게시판입니다.', G5_URL);
     }
     if (!$bo_table) {
-      $this->alert("bo_table 값이 넘어오지 않았습니다.\\nwrite.php?bo_table=code 와 같은 방식으로 넘겨 주세요.", G5_URL);
+      $this->alert("bo_table 값이 넘어오지 않았습니다.\r\nwrite.php?bo_table=code 와 같은 방식으로 넘겨 주세요.", G5_URL);
     }
     $notice_array = explode(',', trim($board['bo_notice']));
 

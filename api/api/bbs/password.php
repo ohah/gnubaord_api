@@ -39,7 +39,7 @@ trait password {
         break;
       case 'x' :
         $this->set_session('ss_delete_comment_'.$comment_id.'_token', $token = uniqid(time()));        
-        $return_url = short_url_clean(G5_HTTP_BBS_URL.'/board.php?bo_table='.$bo_table.'&amp;wr_id='.$row['wr_parent']);
+        $return_url = $this->short_url_clean(G5_HTTP_BBS_URL.'/board.php?bo_table='.$bo_table.'&amp;wr_id='.$row['wr_parent']);
         $result['action'] = 'bbs_comment_delete';        
         $result['data']['bo_table'] = $bo_table;
         $result['data']['comment_id'] = $comment_id;
