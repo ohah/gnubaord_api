@@ -1,22 +1,18 @@
 <?php
 trait search {
-  public function search($bo_table, $wr_id) {
+  public function search() {
     global $g5;
-    $write_table = $g5['write_prefix'].$bo_table;
-    $sca = $this->$sca;
-    $sfl = $this->$sfl;
-    $stx = $this->$stx;
-    $sst = $this->$sst;
-    $sod = $this->$sod;
-    $spt = $this->$spt;
-    $page = $this->$page;
-    $write_table = $g5['write_prefix'].$bo_table;
-    $write = $this->get_write($write_table, $wr_id);
+    $sca = $this->qstr['sca'];
+    $sfl = $this->qstr['sfl'];
+    $stx = $this->qstr['stx'];
+    $sst = $this->qstr['sst'];
+    $sod = $this->qstr['sod'];
+    $spt = $this->qstr['spt'];
+    $page = $this->qstr['page'];
     $member = $this->member;
     $config = $this->config;
-    $board = $this->get_board_db($bo_table);
     $is_admin = $this->is_admin;
-    $is_guest = $this->$is_guest;
+    $is_guest = $this->is_guest;
     $is_member = $this->is_member;
     
     $search_table = array();
@@ -67,7 +63,7 @@ trait search {
         $g5_search['tables'][] = $row['bo_table'];
         $g5_search['read_level'][] = $row['bo_read_level'];
       }
-
+      
       $op1 = '';
 
       // 검색어를 구분자로 나눈다. 여기서는 공백
@@ -80,8 +76,8 @@ trait search {
 
       $text_stx = $this->get_text(stripslashes($stx));
       
-      $search_query = 'sfl='.urlencode($sfl).'&amp;stx='.urlencode($stx).'&amp;sop='.$sop;
-
+      $sfl = urldecode($sfl);
+      $search_query = 'sfl='.urlencode($sfl).'&stx='.urlencode($stx).'&sop='.$sop;
       // 검색필드를 구분자로 나눈다. 여기서는 +
       $field = explode('||', trim($sfl));
 
@@ -130,7 +126,7 @@ trait search {
       $str_board_list = array();
       $board_count = 0;
 
-      $time1 = get_microtime();
+      $time1 = $this->get_microtime();
 
       $total_count = 0;
       for ($i=0; $i<count($g5_search['tables']); $i++) {
@@ -138,7 +134,8 @@ trait search {
 
         $sql = " select wr_id from {$tmp_write_table} where {$sql_search} ";
         $result = $this->sql_query($sql);
-        $row['cnt'] = @$this->sql_num_rows($result);
+        //$row['cnt'] = $this->sql_num_rows($result);
+        $row['cnt'] = count($result);
 
         $total_count += $row['cnt'];
         if ($row['cnt']) {
@@ -153,11 +150,10 @@ trait search {
           $sch_all = "";
           if ($onetable == $g5_search['tables'][$i]) $sch_class = "sch_on";
           else $sch_all = "sch_on";
-          $str_board_list[$i]['url'] = $_SERVER['SCRIPT_NAME'].'?'.$search_query.'&amp;gr_id='.$gr_id.'&amp;onetable='.$g5_search['tables'][$i];
+          $str_board_list[$i]['table'] = $g5_search['tables'][$i];
           $str_board_list[$i]['bo_subject'] = ($this->is_mobile() && $row2['bo_mobile_subject']) ? $row2['bo_mobile_subject'] : $row2['bo_subject'];
           $str_board_list[$i]['cnt_cmt'] = $row['cnt'];
           $str_board_list[$i]['class'] = $sch_class;
-
         }
       }
 
@@ -180,21 +176,22 @@ trait search {
       $k=0;
       for ($idx=$table_index; $idx<count($search_table); $idx++) {
         $sql = " select bo_subject, bo_mobile_subject from {$g5['board_table']} where bo_table = '{$search_table[$idx]}' ";
-        $row = sql_fetch($sql);
-        $bo_subject[$idx] = ((G5_IS_MOBILE && $row['bo_mobile_subject']) ? $row['bo_mobile_subject'] : $row['bo_subject']);
+        $row = $this->sql_fetch($sql);
+        $bo_subject[$idx] = (($this->is_mobile() && $row['bo_mobile_subject']) ? $row['bo_mobile_subject'] : $row['bo_subject']);
 
         $tmp_write_table = $g5['write_prefix'] . $search_table[$idx];
 
         $sql = " select * from {$tmp_write_table} where {$sql_search} order by wr_id desc limit {$from_record}, {$rows} ";
-        $result = sql_query($sql);
-        for ($i=0; $row=sql_fetch_array($result); $i++) {
+        $result = $this->sql_query($sql);
+        for ($i=0; $i<count($result); $i++) {
+          $row = $result[$i];
           // 검색어까지 링크되면 게시판 부하가 일어남
           $list[$idx][$i] = $row;
           $list[$idx][$i]['href'] = $this->get_pretty_url($search_table[$idx], $row['wr_parent']);
 
           if ($row['wr_is_comment']) {
             $sql2 = "select wr_subject, wr_option from {$tmp_write_table} where wr_id = ?";
-            $row2 = sql_fetch($sql2, [$row['wr_parent']]);
+            $row2 = $this->sql_fetch($sql2, [$row['wr_parent']]);
             //$row['wr_subject'] = $row2['wr_subject'];
             $row['wr_subject'] = $this->get_text($row2['wr_subject']);
           }
@@ -216,7 +213,7 @@ trait search {
             $content = $this->cut_str($content, 300, "…");
 
             if (strstr($sfl, 'wr_content'))
-              $content = search_font($stx, $content);
+              $content = $this->search_font($stx, $content);
           } else{
             $content = '';
           }
@@ -229,7 +226,7 @@ trait search {
           if ($k >= $rows)
             break;
         }
-        $this->sql_free_result($result);
+        //$this->sql_free_result($result);
 
         if ($k >= $rows)
           break;
@@ -237,7 +234,7 @@ trait search {
         $from_record = 0;
       }
 
-      $write_pages = $this->get_paging($this->is_mobile() ? $config['cf_mobile_pages'] : $config['cf_write_pages'], $page, $total_page, $_SERVER['SCRIPT_NAME'].'?'.$search_query.'&amp;gr_id='.$gr_id.'&amp;srows='.$srows.'&amp;onetable='.$onetable.'&amp;page=');
+      $write_pages = $this->get_paging($this->is_mobile() ? $config['cf_mobile_pages'] : $config['cf_write_pages'], $page, $total_page, $_SERVER['SCRIPT_NAME'].'?'.$search_query.'&gr_id='.$gr_id.'&srows='.$srows.'&onetable='.$onetable.'&page=');
     }
 
     $k = 0;
@@ -258,9 +255,10 @@ trait search {
     if (!$sop) $sop = 'or';
 
     $result = array();
+    $result['str_board_list'] = $str_board_list;
     $result['group_select'] = $group_select;
     $result['write_pages'] = $write_pages;
     $result['list'] = $this->unset_data($list);
-    return json_encode($result, JSON_UNESCAPED_UNICODE);
+    return $this->data_encode($result);
   }
 }

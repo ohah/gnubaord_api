@@ -1,27 +1,29 @@
 <?php
 trait write_comment_update {
-  public function write_comment_update($bo_table, $wr_id) {
+  public function write_comment_update($bo_table, $wr_id, $w) {
     global $g5;
-    $sca = $this->$sca;
-    $sfl = $this->$sfl;
-    $stx = $this->$stx;
-    $sst = $this->$sst;
-    $sod = $this->$sod;
-    $spt = $this->$spt;
-    $page = $this->$page;
+    @extract($_POST);
+    $sca = $this->qstr['sca'];
+    $sfl = $this->qstr['sfl'];
+    $stx = $this->qstr['stx'];
+    $sst = $this->qstr['sst'];
+    $sod = $this->qstr['sod'];
+    $spt = $this->qstr['spt'];
+    $page = $this->qstr['page'];    
     $write_table = $g5['write_prefix'].$bo_table;
     $write = $this->get_write($write_table, $wr_id);
     $member = $this->member;
     $config = $this->config;
     $board = $this->get_board_db($bo_table);
     $is_admin = $this->is_admin;
-    $is_guest = $this->$is_guest;
+    $is_guest = $this->is_guest;
     $is_member = $this->is_member;
 
-    $comment_token = trim(get_session('ss_comment_token'));
+    $comment_token = trim($this->get_session('ss_comment_token'));
+
     $this->set_session('ss_comment_token', '');
     if(empty($_POST['token']) || !$comment_token || $comment_token != $_POST['token'])
-      $this->alert('올바른 방법으로 이용해 주십시오.');
+      $this->alert($comment_token.'올바른 방법으로 이용해 주십시오.');
 
     // 090710
     if (substr_count($wr_content, "&#") > 50) {
@@ -29,7 +31,6 @@ trait write_comment_update {
       exit;
     }
 
-    $w = isset($_POST['w']) ? $this->clean_xss_tags($_POST['w']) : '';
     $wr_name  = isset($_POST['wr_name']) ? $this->clean_xss_tags(trim($_POST['wr_name'])) : '';
     $wr_secret = isset($_POST['wr_secret']) ? $this->clean_xss_tags($_POST['wr_secret']) : '';
     $wr_email = $wr_subject = '';
@@ -53,11 +54,13 @@ trait write_comment_update {
       $wr_email = $this->get_email_address(trim($_POST['wr_email']));
 
     // 비회원의 경우 이름이 누락되는 경우가 있음
+
     if ($is_guest) {
       if ($wr_name == '')
         $this->alert('이름은 필히 입력하셔야 합니다.');
-      if(!$this->chk_captcha())
+      if(!$this->chk_captcha()){
         $this->alert('자동등록방지 숫자가 틀렸습니다.');
+      }
     }
 
     if ($w == "c" || $w == "cu") {
@@ -139,7 +142,7 @@ trait write_comment_update {
         }
         if ($reply_array['wr_comment_reply'])
           $sql .= " and wr_comment_reply like '{$reply_array['wr_comment_reply']}%' ";
-        $row = sql_fetch($sql);
+        $row = $this->sql_fetch($sql);
 
         if (!$row['reply'])
           $reply_char = $begin_reply_char;
@@ -195,13 +198,13 @@ trait write_comment_update {
       $comment_id = $this->db->lastInsertId();
 
       // 원글에 댓글수 증가 & 마지막 시간 반영
-      $this->sql_query(" update $write_table set wr_comment = wr_comment + 1, wr_last = ? where wr_id = ? ", [G5_TIME_YMDHIS, $wr_id]);
+      $this->sql_query(" update $write_table set wr_comment = wr_comment + 1, wr_last = '".G5_TIME_YMDHIS."' where wr_id = '$wr_id' ");
 
       // 새글 INSERT
-      $this->sql_query(" insert into {$g5['board_new_table']} ( bo_table, wr_id, wr_parent, bn_datetime, mb_id ) values ( ?, ?, ?, ?, ? ) ", [$bo_table, $comment_id, $wr_id, G5_TIME_YMDHIS, $member['mb_id']]);
+      $this->sql_query(" insert into {$g5['board_new_table']} ( bo_table, wr_id, wr_parent, bn_datetime, mb_id ) values ( '$bo_table', '$comment_id', '$wr_id', '".G5_TIME_YMDHIS."', '{$member['mb_id']}' ) ");
 
       // 댓글 1 증가
-      $this->sql_query(" update {$g5['board_table']} set bo_count_comment = bo_count_comment + 1 where bo_table = ?", [$bo_table]);
+      $this->sql_query(" update {$g5['board_table']} set bo_count_comment = bo_count_comment + 1 where bo_table = '$bo_table' ");
 
       // 포인트 부여
       $this->insert_point($member['mb_id'], $board['bo_comment_point'], "{$board['bo_subject']} {$wr_id}-{$comment_id} 댓글쓰기", $bo_table, $comment_id, '댓글');
@@ -272,8 +275,8 @@ trait write_comment_update {
     */
   } else if ($w == 'cu') {
     $sql = " select mb_id, wr_password, wr_comment, wr_comment_reply from $write_table
-                where wr_id = ?";
-    $comment = $reply_array = $this->sql_fetch($sql, [$comment_id]);
+                where wr_id = '$comment_id' ";
+    $comment = $reply_array = $this->sql_fetch($sql);
     $tmp_comment = $reply_array['wr_comment'];
 
     $len = strlen($reply_array['wr_comment_reply']);
@@ -313,12 +316,12 @@ trait write_comment_update {
     }
 
     $sql = " select count(*) as cnt from $write_table
-                where wr_comment_reply like ?
-                and wr_id <> ?
-                and wr_parent = ?
-                and wr_comment = ?
-                and wr_is_comment = ? ";
-    $row = $this->sql_fetch($sql, [$comment_reply.'%', $comment_id, $wr_id, $tmp_comment, '1']);
+                where wr_comment_reply like '$comment_reply%'
+                and wr_id <> '$comment_id'
+                and wr_parent = '$wr_id'
+                and wr_comment = '$tmp_comment'
+                and wr_is_comment = 1 ";
+    $row = $this->sql_fetch($sql);
     if ($row['cnt'] && !$is_admin)
       $this->alert('이 댓글와 관련된 답변댓글이 존재하므로 수정 할 수 없습니다.');
 
@@ -331,33 +334,31 @@ trait write_comment_update {
       $sql_secret = " , wr_option = '$wr_secret' ";
 
     $sql = " update $write_table
-              set wr_subject = ?
-                  wr_content = ?
-                  wr_1 = ?,
-                  wr_2 = ?,
-                  wr_3 = ?,
-                  wr_4 = ?,
-                  wr_5 = ?,
-                  wr_6 = ?,
-                  wr_7 = ?,
-                  wr_8 = ?,
-                  wr_9 = ?,
-                  wr_10 = ?
-                  $sql_ip
-                  $sql_secret
-            where wr_id = ? ";
+      set wr_subject = '$wr_subject',
+           wr_content = '$wr_content',
+           wr_1 = '$wr_1',
+           wr_2 = '$wr_2',
+           wr_3 = '$wr_3',
+           wr_4 = '$wr_4',
+           wr_5 = '$wr_5',
+           wr_6 = '$wr_6',
+           wr_7 = '$wr_7',
+           wr_8 = '$wr_8',
+           wr_9 = '$wr_9',
+           wr_10 = '$wr_10'
+           $sql_ip
+           $sql_secret
+    where wr_id = '$comment_id' ";
 
-    $this->sql_query($sql, [$wr_subject, $wr_content, $wr_1, $wr_2, $wr_3, $wr_4, $wr_5, $wr_6, $wr_7, $wr_8, $wr_9, $wr_10, $comment_id]);
+    $this->sql_query($sql);
   }
     
-  delete_cache_latest($bo_table);
+  $this->delete_cache_latest($bo_table);
 
-  $redirect_url = $this->short_url_clean(G5_HTTP_BBS_URL.'/board.php?bo_table='.$bo_table.'&amp;wr_id='.$wr['wr_parent'].'&amp;'.$qstr.'&amp;#c_'.$comment_id);
+  $redirect_url = $this->short_url_clean(G5_HTTP_BBS_URL.'/board.php?bo_table='.$bo_table.'&wr_id='.$wr['wr_parent'].'&'.$qstr.'&#c_'.$comment_id);
 
   run_event('comment_update_after', $board, $wr_id, $w, $qstr, $redirect_url, $comment_id, $reply_array);
-
-  $result = $this->get_write($bo_table, $wr_id);
   
-  return json_encode($result, JSON_UNESCAPED_UNICODE);
+  return $this->get_cmt_list($bo_table, $wr_id);
   }
 }

@@ -17,7 +17,7 @@ trait common {
   public $qaconfig = array();
   public $g5_debug = array('php'=>array(),'sql'=>array());
   public $write = array();
-  public $qstr = array();
+  public $qstr = array('sca'=>'', 'sfl'=>'','stx'=>'','sst'=>'','sst'=>'','sod'=>'','spt'=>'','page'=>'');
   public $g5_object;
   public function __construct() {
     global $g5, $g5_object;
@@ -65,8 +65,8 @@ trait common {
     ini_set("session.gc_divisor", 100); // session.gc_divisor는 session.gc_probability와 결합하여 각 세션 초기화 시에 gc(쓰레기 수거) 프로세스를 시작할 확률을 정의합니다. 확률은 gc_probability/gc_divisor를 사용하여 계산합니다. 즉, 1/100은 각 요청시에 GC 프로세스를 시작할 확률이 1%입니다. session.gc_divisor의 기본값은 100입니다.
 
     session_set_cookie_params(0, '/');
-    //ini_set("session.cookie_domain", G5_COOKIE_DOMAIN);
-    ini_set("session.cookie_domain", API_URL);
+    ini_set("session.cookie_domain", G5_COOKIE_DOMAIN);
+    //ini_set("session.cookie_domain", API_URL);
 
     //==============================================================================
     // 공용 변수
@@ -127,7 +127,6 @@ trait common {
     define('G5_HTTPS_BBS_URL', $this->https_url(G5_BBS_DIR, true));
     
     $query = $this->REQUEST_URI(); //common.php 에서 받는 리퀘스트 대신 쿼리로 받음
-    
     if (isset($query['sca']))  {
       $sca = $this->clean_xss_tags(trim($query['sca']));
       if ($sca) {
@@ -194,7 +193,7 @@ trait common {
     } else {
       $page = '';
     }
-
+    
     if (isset($query['w'])) {
       $w = substr($w, 0, 2);
     } else {
@@ -259,7 +258,7 @@ trait common {
     }
 
     if ($gr_id && !is_array($gr_id)) {
-      $this->$group = get_group($gr_id, true);
+      $this->$group = $this->get_group($gr_id, true);
     }
 
     if ($this->is_admin != 'super') {

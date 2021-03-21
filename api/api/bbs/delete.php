@@ -2,20 +2,20 @@
 trait delete {
   public function delete($bo_table, $wr_id) {
     global $g5;
-    $sca = $this->$sca;
-    $sfl = $this->$sfl;
-    $stx = $this->$stx;
-    $sst = $this->$sst;
-    $sod = $this->$sod;
-    $spt = $this->$spt;
-    $page = $this->$page;
+    $sca = $this->qstr['sca'];
+    $sfl = $this->qstr['sfl'];
+    $stx = $this->qstr['stx'];
+    $sst = $this->qstr['sst'];
+    $sod = $this->qstr['sod'];
+    $spt = $this->qstr['spt'];
+    $page = $this->qstr['page'];
     $write_table = $g5['write_prefix'].$bo_table;
     $write = $this->get_write($write_table, $wr_id);
     $member = $this->member;
     $config = $this->config;
     $board = $this->get_board_db($bo_table);
     $is_admin = $this->is_admin;
-    $is_guest = $this->$is_guest;
+    $is_guest = $this->is_guest;
     $is_member = $this->is_member;
     $qstr = '';
     foreach ($this->qstr as $key => $value) {
@@ -160,28 +160,26 @@ trait delete {
   }
   public function delete_comment($bo_table, $comment_id) {
     global $g5;
-    $sca = $this->$sca;
-    $sfl = $this->$sfl;
-    $stx = $this->$stx;
-    $sst = $this->$sst;
-    $sod = $this->$sod;
-    $spt = $this->$spt;
-    $page = $this->$page;
+    $sca = $this->qstr['sca'];
+    $sfl = $this->qstr['sfl'];
+    $stx = $this->qstr['stx'];
+    $sst = $this->qstr['sst'];
+    $sod = $this->qstr['sod'];
+    $spt = $this->qstr['spt'];
+    $page = $this->qstr['page'];
     $write_table = $g5['write_prefix'].$bo_table;
     $write = $this->get_write($write_table, $wr_id);
     $member = $this->member;
     $config = $this->config;
     $board = $this->get_board_db($bo_table);
     $is_admin = $this->is_admin;
-    $is_guest = $this->$is_guest;
+    $is_guest = $this->is_guest;
     $is_member = $this->is_member;
     $qstr = '';
     foreach ($this->qstr as $key => $value) {
       $qstr .= $key.'='.$value;
     }
-
-    $wr_password = $_POST['wr_password'] ? $_POST['wr_password'] : '';
-    
+    @extract($_POST);
     $delete_comment_token = $this->get_session('ss_delete_comment_'.$comment_id.'_token');
     $this->set_session('ss_delete_comment_'.$comment_id.'_token', '');
 
@@ -219,7 +217,7 @@ trait delete {
       if ($member['mb_id'] !== $write['mb_id'])
         $this->alert('자신의 글이 아니므로 삭제할 수 없습니다.');
     } else {
-      if (!check_password($wr_password, $write['wr_password']))
+      if (!$this->check_password($wr_password, $write['wr_password']))
         $this->alert('비밀번호가 틀립니다.');
     }
 
@@ -228,56 +226,58 @@ trait delete {
     $comment_reply = substr($write['wr_comment_reply'], 0, $len);
 
     $sql = " select count(*) as cnt from {$write_table}
-                where wr_comment_reply like ?
-                and wr_id <> ?
-                and wr_parent = ?
-                and wr_comment = ?
-                and wr_is_comment = ?";
-    $row = sql_fetch($sql, [$comment_reply.'%', $comment_id, $write['wr_parent'], $write['wr_commnet'], '1']);
+            where wr_comment_reply like '{$comment_reply}%'
+            and wr_id <> '{$comment_id}'
+            and wr_parent = '{$write['wr_parent']}'
+            and wr_comment = '{$write['wr_comment']}'
+            and wr_is_comment = 1 ";
+    $row = $this->sql_fetch($sql);
     if ($row['cnt'] && !$is_admin)
       $this->alert('이 코멘트와 관련된 답변코멘트가 존재하므로 삭제 할 수 없습니다.');
 
     // 코멘트 포인트 삭제
-    if (!delete_point($write['mb_id'], $bo_table, $comment_id, '댓글'))
+    if (!$this->delete_point($write['mb_id'], $bo_table, $comment_id, '댓글'))
       $this->insert_point($write['mb_id'], $board['bo_comment_point'] * (-1), "{$board['bo_subject']} {$write['wr_parent']}-{$comment_id} 댓글삭제");
 
     // 코멘트 삭제
-    $this->sql_query(" delete from {$write_table} where wr_id = ?", [$comment_id]);
+    $this->sql_query(" delete from {$write_table} where wr_id = '{$comment_id}' ");
 
     // 코멘트가 삭제되므로 해당 게시물에 대한 최근 시간을 다시 얻는다.
-    $sql = " select max(wr_datetime) as wr_last from {$write_table} where wr_parent = ?";
-    $row = $this->sql_fetch($sql, [$write['wr_parent']]);
+    $sql = " select max(wr_datetime) as wr_last from {$write_table} where wr_parent = '{$write['wr_parent']}' ";
+    $row = $this->sql_fetch($sql);
 
     // 원글의 코멘트 숫자를 감소
-    $this->sql_query(" update {$write_table} set wr_comment = wr_comment - 1, wr_last = ? where wr_id = ?", [$row['wr_last'], $write['wr_parent']]);
+    $this->sql_query(" update {$write_table} set wr_comment = wr_comment - 1, wr_last = '{$row['wr_last']}' where wr_id = '{$write['wr_parent']}' ");
 
     // 코멘트 숫자 감소
-    $this->sql_query(" update {$g5['board_table']} set bo_count_comment = bo_count_comment - 1 where bo_table = ?", [$bo_table]);
+    $this->sql_query(" update {$g5['board_table']} set bo_count_comment = bo_count_comment - 1 where bo_table = '{$bo_table}' ");
 
     // 새글 삭제
-    $this->sql_query(" delete from {$g5['board_new_table']} where bo_table = ? and wr_id = ?", [$bo_table, $comment_id]);
+    $this->sql_query(" delete from {$g5['board_new_table']} where bo_table = '{$bo_table}' and wr_id = '{$comment_id}' ");
 
-    delete_cache_latest($bo_table);
+    $this->delete_cache_latest($bo_table);
 
     run_event('bbs_delete_comment', $comment_id, $board);
+
+    return $this->get_cmt_list($bo_table, $write['wr_parent']);
   }
 
   public function delete_all($bo_table) {
     global $g5;
-    $sca = $this->$sca;
-    $sfl = $this->$sfl;
-    $stx = $this->$stx;
-    $sst = $this->$sst;
-    $sod = $this->$sod;
-    $spt = $this->$spt;
-    $page = $this->$page;
+    $sca = $this->qstr['sca'];
+    $sfl = $this->qstr['sfl'];
+    $stx = $this->qstr['stx'];
+    $sst = $this->qstr['sst'];
+    $sod = $this->qstr['sod'];
+    $spt = $this->qstr['spt'];
+    $page = $this->qstr['page'];
     $write_table = $g5['write_prefix'].$bo_table;
     $write = $this->get_write($write_table, $wr_id);
     $member = $this->member;
     $config = $this->config;
     $board = $this->get_board_db($bo_table);
     $is_admin = $this->is_admin;
-    $is_guest = $this->$is_guest;
+    $is_guest = $this->is_guest;
     $is_member = $this->is_member;
     $qstr = '';
     foreach ($this->qstr as $key => $value) {

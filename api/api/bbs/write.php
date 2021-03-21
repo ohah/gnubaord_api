@@ -13,7 +13,7 @@ trait write {
     $is_member = $this->is_member;
     $board = $this->get_board_db($bo_table);
     $group = $this->get_group($board['gr_id']);
-    $wr_password = $_POST['wr_password'] ? $wr_password : '';
+    $wr_password = $this->getPostData()['wr_password'] ? $this->getPostData()['wr_password'] : '';
     if (!$board['bo_table']) {
       $this->alert('존재하지 않는 게시판입니다.', G5_URL);
     }
@@ -316,8 +316,6 @@ trait write {
           if (!$this->check_password($wr_password, $write['wr_password'])) {
             $is_wrong = run_replace('invalid_password', false, 'write', $write);
             if(!$is_wrong) $this->alert('비밀번호가 틀립니다.');
-          }else {
-            $this->write_passsword_check($bo_table, $wr_id);
           }
         }
       }
@@ -433,12 +431,12 @@ trait write {
     $uid = $this->get_uniqid();
     $arr = get_defined_vars();
     $filter = [
-      'uid', 'w', 'bo_table', 'wr_id', 'sca', 'sfl',' stx', 'stp', 'sst', 'sod', 'page',
-      'is_notice', 'is_html', 'is_secret', 'is_mail', 'is_dhtml_editor', 'is_category', 
+      'uid', 'w', 'bo_table', 'wr_id', 'sca', 'sfl',' stx', 'stp', 'sst', 'sod', 'page', 'file_count',
+      'is_notice', 'is_html', 'is_secret', 'is_mail', 'is_dhtml_editor', 'is_category', 'upload_max_filesize', 
       'is_name', 'is_password', 'is_email', 'is_homepage', 'option', 'is_member', 'editor_content_js', 'autosave_count',
-      'write_min', 'write_max', 'editor_html', 'is_link', 'is_file', 'is_file_content', 'file',
-      'is_use_captcha', 'captcha_html', 
-      'write', 
+      'write_min', 'write_max', 'editor_html', 'is_link', 'is_file', 'is_file_content', 'file', 'subject', 
+      'is_use_captcha', 'captcha_html', 'html_checked', 'html_value', 'secret_checked', 'is_admin',  'is_guest',
+      'write', 'width', 'notice_checked', 'recv_email_checked', 'category_option', 'name', 'email', 'homepage', 'option'
     ];
     foreach ( $arr as $key => $value ) {
       if(!in_array($key, $filter)) {
@@ -446,6 +444,6 @@ trait write {
         //$data[$key] = $value;
       }
     }
-    echo json_encode($arr, JSON_UNESCAPED_UNICODE);
+    echo $this->data_encode($arr);
   }
 }

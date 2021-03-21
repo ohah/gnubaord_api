@@ -2,13 +2,13 @@
 trait password {
   public function password($w='', $bo_table, $wr_id = '', $comment_id = ''){
     global $g5;
-    $sca = $this->$sca;
-    $sfl = $this->$sfl;
-    $stx = $this->$stx;
-    $sst = $this->$sst;
-    $sod = $this->$sod;
-    $spt = $this->$spt;
-    $page = $this->$page;
+    $sca = $this->qstr['sca'];
+    $sfl = $this->qstr['sfl'];
+    $stx = $this->qstr['stx'];
+    $sst = $this->qstr['sst'];
+    $sod = $this->qstr['sod'];
+    $spt = $this->qstr['spt'];
+    $page = $this->qstr['page'];
     $write_table = $g5['write_prefix'].$bo_table;
     $write = $this->get_write($write_table, $wr_id);
     $member = $this->member;
@@ -19,7 +19,7 @@ trait password {
     $is_member = $this->is_member;
     $qstr = '';
     foreach ($this->qstr as $key => $value) {
-      $qstr .= $key.'='.$value;
+      if($value) $qstr .= $key.'='.$value;
     }
     $comment_id = $comment_id ? preg_replace('/[^0-9]/', '',$comment_id) : 0;
     $result = array();
@@ -67,11 +67,12 @@ trait password {
       default :
         $this->alert('w 값이 제대로 넘어오지 않았습니다.');
     }
-    return $result;
+    return $this->data_encode($result);
   }
 
   public function password_check($w, $bo_table, $wr_id) { 
     global $g5;
+    $_POST = $this->getPostData();
     $wr_password = $_POST['wr_password'] ? $_POST['wr_password'] : '';
     $write_table = $g5['write_prefix'].$bo_table;
     if($w == 's') {
@@ -92,7 +93,7 @@ trait password {
       $ss_name = 'ss_secret_'.$bo_table.'_'.$wr['wr_num'];
       //set_session("ss_secret", "$bo_table|$wr[wr_num]");
       $this->set_session($ss_name, TRUE);
-      return true;
+      $this->alert('success');
     } else if($w == 'sc') {
       $wr = $this->get_write($write_table, $wr_id);
       if( !$wr['wr_password'] && $wr['mb_id'] ){
@@ -108,7 +109,7 @@ trait password {
       $ss_name = 'ss_secret_comment_'.$bo_table.'_'.$wr['wr_id'];
       //set_session("ss_secret", "$bo_table|$wr[wr_num]");
       $this->set_session($ss_name, TRUE);
-      return true;
+      $this->alert('success');
     }else {
       $this->alert('w 값이 제대로 넘어오지 않았습니다.');
     }

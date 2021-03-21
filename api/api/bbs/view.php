@@ -2,13 +2,13 @@
 trait view {
   public function get_views($bo_table, $wr_id) {
     global $g5;
-    $sca = $this->$sca;
-    $sfl = $this->$sfl;
-    $stx = $this->$stx;
-    $sst = $this->$sst;
-    $sod = $this->$sod;
-    $spt = $this->$spt;
-    $page = $this->$page;
+    $sca = $this->qstr['sca'];
+    $sfl = $this->qstr['sfl'];
+    $stx = $this->qstr['stx'];
+    $sst = $this->qstr['sst'];
+    $sod = $this->qstr['sod'];
+    $spt = $this->qstr['spt'];
+    $page = $this->qstr['page'];
     $write_table = $g5['write_prefix'].$bo_table;
     $write = $this->get_write($write_table, $wr_id);
     $member = $this->member;
@@ -17,7 +17,10 @@ trait view {
     $is_admin = $this->is_admin;
     $is_guest = $this->$is_guest;
     $is_member = $this->is_member;
-
+    $qstr = '';
+    foreach ($this->qstr as $key => $value) {
+      if($value) $qstr .= $key.'='.$value;
+    }
     // 게시판에서 두단어 이상 검색 후 검색된 게시물에 코멘트를 남기면 나오던 오류 수정
     $sop = strtolower($sop);
     if ($sop != 'and' && $sop != 'or')
@@ -28,7 +31,7 @@ trait view {
     if ($sca || $stx || $stx === '0') {
       // where 문을 얻음
       $sql_search = $this->get_sql_search($sca, $sfl, $stx, $sop);
-      $search_href = $this->get_pretty_url($bo_table,'','&amp;page='.$page.$qstr);
+      $search_href = $this->get_pretty_url($bo_table,'','&page='.$page.$qstr);
       $list_href = $this->get_pretty_url($bo_table);
     } else {
       $search_href = '';
@@ -38,23 +41,23 @@ trait view {
     if (!$board['bo_use_list_view']) {
       if ($sql_search)
         $sql_search = " and " . $sql_search;
-
+  
       // 윗글을 얻음
-      $sql = " select wr_id, wr_subject, wr_datetime from {$write_table} where wr_is_comment = 0 and wr_num = ? and wr_reply < ? {$sql_search} order by wr_num desc, wr_reply desc limit 1 ";
-      $prev = $this->sql_fetch($sql, [$write['wr_num'], $write['wr_reply']]);
+      $sql = " select wr_id, wr_subject, wr_datetime from {$write_table} where wr_is_comment = 0 and wr_num = '{$write['wr_num']}' and wr_reply < '{$write['wr_reply']}' {$sql_search} order by wr_num desc, wr_reply desc limit 1 ";
+      $prev = $this->sql_fetch($sql);
       // 위의 쿼리문으로 값을 얻지 못했다면
-      if (isset($prev['wr_id']) && !$prev['wr_id']) {
-        $sql = " select wr_id, wr_subject, wr_datetime from {$write_table} where wr_is_comment = ? and wr_num < ? {$sql_search} order by wr_num desc, wr_reply desc limit 1 ";
-        $prev = $this->sql_fetch($sql, [0, $write['wr_num']]);
+      if (! (isset($prev['wr_id']) && $prev['wr_id'])) {
+        $sql = " select wr_id, wr_subject, wr_datetime from {$write_table} where wr_is_comment = 0 and wr_num < '{$write['wr_num']}' {$sql_search} order by wr_num desc, wr_reply desc limit 1 ";
+        $prev = $this->sql_fetch($sql);
       }
-
+  
       // 아래글을 얻음
-      $sql = " select wr_id, wr_subject, wr_datetime from {$write_table} where wr_is_comment = 0 and wr_num = ? and wr_reply > ? {$sql_search} order by wr_num, wr_reply limit 1 ";
-      $next = $this->sql_fetch($sql, [$write['wr_num'], $write['wr_reply']]);
+      $sql = " select wr_id, wr_subject, wr_datetime from {$write_table} where wr_is_comment = 0 and wr_num = '{$write['wr_num']}' and wr_reply > '{$write['wr_reply']}' {$sql_search} order by wr_num, wr_reply limit 1 ";
+      $next = $this->sql_fetch($sql);
       // 위의 쿼리문으로 값을 얻지 못했다면
-      if (isset($next['wr_id']) && !$next['wr_id']) {
-        $sql = " select wr_id, wr_subject, wr_datetime from {$write_table} where wr_is_comment = 0 and wr_num > ? {$sql_search} order by wr_num, wr_reply limit 1 ";
-        $next = $this->sql_fetch($sql, $write['wr_num']);
+      if (! (isset($next['wr_id']) && $next['wr_id'])) {
+        $sql = " select wr_id, wr_subject, wr_datetime from {$write_table} where wr_is_comment = 0 and wr_num > '{$write['wr_num']}' {$sql_search} order by wr_num, wr_reply limit 1 ";
+        $next = $this->sql_fetch($sql);
       }
     }
 
@@ -83,27 +86,27 @@ trait view {
     // 답변 링크
     $reply_href = '';
     if ($member['mb_level'] >= $board['bo_reply_level']) {
-      $reply_href = $this->short_url_clean(G5_BBS_URL.'/write.php?w=r&amp;bo_table='.$bo_table.'&amp;wr_id='.$wr_id.$qstr);
+      $reply_href = $this->short_url_clean(G5_BBS_URL.'/write.php?w=r&bo_table='.$bo_table.'&wr_id='.$wr_id.$qstr);
     }
 
     // 수정, 삭제 링크
     $update_href = $delete_href = '';
     // 로그인중이고 자신의 글이라면 또는 관리자라면 비밀번호를 묻지 않고 바로 수정, 삭제 가능
     if (($member['mb_id'] && ($member['mb_id'] === $write['mb_id'])) || $is_admin) {
-      $update_href = $this->short_url_clean(G5_BBS_URL.'/write.php?w=u&amp;bo_table='.$bo_table.'&amp;wr_id='.$wr_id.'&amp;page='.$page.$qstr);
+      $update_href = $this->short_url_clean(G5_BBS_URL.'/write.php?w=u&bo_table='.$bo_table.'&wr_id='.$wr_id.'&page='.$page.$qstr);
       $this->set_session('ss_delete_token', $token = uniqid(time()));
-      $delete_href = G5_BBS_URL.'/delete.php?bo_table='.$bo_table.'&amp;wr_id='.$wr_id.'&amp;token='.$token.'&amp;page='.$page.urldecode($qstr);
+      $delete_href = G5_BBS_URL.'/delete.php?bo_table='.$bo_table.'&wr_id='.$wr_id.'&token='.$token.'&page='.$page.urldecode($qstr);
     }
     else if (!$write['mb_id']) { // 회원이 쓴 글이 아니라면
-      $update_href = G5_BBS_URL.'/password.php?w=u&amp;bo_table='.$bo_table.'&amp;wr_id='.$wr_id.'&amp;page='.$page.$qstr;
-      $delete_href = G5_BBS_URL.'/password.php?w=d&amp;bo_table='.$bo_table.'&amp;wr_id='.$wr_id.'&amp;page='.$page.$qstr;
+      $update_href = G5_BBS_URL.'/write?w=u&bo_table='.$bo_table.'&wr_id='.$wr_id.'&page='.$page.$qstr;
+      $delete_href = G5_BBS_URL.'/delete?w=d&bo_table='.$bo_table.'&wr_id='.$wr_id.'&page='.$page.$qstr;
     }
 
     // 최고, 그룹관리자라면 글 복사, 이동 가능
     $copy_href = $move_href = '';
     if ($write['wr_reply'] == '' && ($is_admin == 'super' || $is_admin == 'group')) {
-      $copy_href = G5_BBS_URL.'/move.php?sw=copy&amp;bo_table='.$bo_table.'&amp;wr_id='.$wr_id.'&amp;page='.$page.$qstr;
-      $move_href = G5_BBS_URL.'/move.php?sw=move&amp;bo_table='.$bo_table.'&amp;wr_id='.$wr_id.'&amp;page='.$page.$qstr;
+      $copy_href = G5_BBS_URL.'/move.php?sw=copy&bo_table='.$bo_table.'&wr_id='.$wr_id.'&page='.$page.$qstr;
+      $move_href = G5_BBS_URL.'/move.php?sw=move&bo_table='.$bo_table.'&wr_id='.$wr_id.'&page='.$page.$qstr;
     }
 
     $scrap_href = '';
@@ -111,15 +114,15 @@ trait view {
     $nogood_href = '';
     if ($is_member) {
       // 스크랩 링크
-      $scrap_href = G5_BBS_URL.'/scrap_popin.php?bo_table='.$bo_table.'&amp;wr_id='.$wr_id;
+      $scrap_href = G5_BBS_URL.'/scrap_popin.php?bo_table='.$bo_table.'&wr_id='.$wr_id;
 
       // 추천 링크
       if ($board['bo_use_good'])
-        $good_href = G5_BBS_URL.'/good.php?bo_table='.$bo_table.'&amp;wr_id='.$wr_id.'&amp;good=good';
+        $good_href = G5_BBS_URL.'/good.php?bo_table='.$bo_table.'&wr_id='.$wr_id.'&good=good';
 
       // 비추천 링크
       if ($board['bo_use_nogood'])
-        $nogood_href = G5_BBS_URL.'/good.php?bo_table='.$bo_table.'&amp;wr_id='.$wr_id.'&amp;good=nogood';
+        $nogood_href = G5_BBS_URL.'/good.php?bo_table='.$bo_table.'&wr_id='.$wr_id.'&good=nogood';
     }
 
     $view = $this->get_view($write, $board, $board_skin_path);
@@ -156,17 +159,30 @@ trait view {
 
     $result = array();
 
-    // 답변 링크
-    $reply_href = '';
+    // 답변 링크    
+    $result['list_href'] = $list_href;
+    $result['reply_href'] = $reply_href;
+    $result['update_href'] = $update_href;
+    $result['delete_href'] = $delete_href;
+    $result['copy_href'] = $copy_href;
+    $result['move_href'] = $move_href;
+    $result['good_href'] = $good_href;
+    $result['nogood_href'] = $nogood_href;
+    $result['scrap_href'] = $scrap_href;
     $result['prev_wr_subject'] = $prev_wr_subject;
     $result['prev_href'] = $prev_href;
     $result['prev_wr_date'] = $prev_wr_date;
-    $result['pnext_wr_subject'] = $next_wr_subject;
-    $result['pnext_href'] = $next_href;
-    $result['pnext_wr_date'] = $next_wr_date;
+    $result['next_wr_subject'] = $next_wr_subject;
+    $result['next_href'] = $next_href;
+    $result['next_wr_date'] = $next_wr_date;
     $result['next_href'] = $next_href;
     $result['write_href'] = $write_href;
+    $result['board'] = $board;
+    $result['good_href'] = $good_href;
+    $result['nogood_href'] = $nogood_href;
+    $result['is_signature'] = $is_signature;
+    $result['signature'] = $signature;
     $result['view'] = $this->unset_data($view);
-    return json_encode($result, JSON_UNESCAPED_UNICODE);
+    return $this->data_encode($result);
   }
 }

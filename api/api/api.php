@@ -17,14 +17,15 @@ function api_g5_path() {
   $host = preg_replace("/[\<\>\'\"\\\'\\\"\%\=\(\)\/\^\*]/", '', $host); 
   $result['url'] = $http.$host.$port.$user.$root; 
   $result['api'] = $result['path'];
-  $result['url'] = str_replace('/api/api', '/api', $result['url']);
+  $result['url'] = str_replace('/api/api', '', $result['url']);
+  $result['api_url'] = str_replace('/api/api', '/api', $http.$host.$port.$user.$root);
   $result['path'] = str_replace('/api/api', '', $result['path']);
   return $result;
 }
 $g5_path = api_g5_path();
 require "../config.php";
 define('API_PATH', $g5_path['api']);
-define('API_URL', $g5_path['url']);
+define('API_URL', $g5_path['api_url']);
 define('API_LIB_PATH', API_PATH.'/lib/');
 unset($g5_path);
 require G5_PATH."/data/dbconfig.php";
@@ -64,6 +65,51 @@ class Gnuboard_api extends commonlib {
     echo $cnt."??";
   }
   */
+      /**
+     * @method Post getPostData
+     * @return array
+     * 
+     * Convert Content-Disposition to a post data
+     */
+  public function getPostData()  {
+    return $_POST = json_decode(file_get_contents("php://input"),true);
+  }
+  public function data_encode($data, $status = '200', $message = "OK") {
+    $result = [];
+    $result['status'] = 200;
+    $result['message'] = 'OK';
+    $result['data'] = $data;
+    return json_encode($result, JSON_UNESCAPED_UNICODE);
+  }
+  public function Logout() {
+    // 이호경님 제안 코드
+    session_unset(); // 모든 세션변수를 언레지스터 시켜줌
+    session_destroy(); // 세션해제함
+
+    // 자동로그인 해제 --------------------------------
+    $this->set_cookie('ck_mb_id', '', 0);
+    $this->set_cookie('ck_auto', '', 0);
+    // 자동로그인 해제 end --------------------------------
+    setcookie($this->cookiename, "", time() - 3600, '/');
+    $jwt = $_COOKIE[$this->cookiename];
+    return $this->data_encode(
+      array(
+        'mb_id' => '',
+        'mb_password' => '',
+        'mb_level' => 1,
+      )
+    );
+  }
+  public function LoginCheck() {
+    if($_COOKIE[$this->cookiename]) {
+      $jwt = $_COOKIE[$this->cookiename];
+      $decoded = JWT::decode($jwt, $this->key, array('HS256'));
+      $mb_id = $decoded->aud;
+      return $this->data_encode($this->get_member($mb_id));
+    } else {
+      return $this->alert('로그인 정보가 없습니다');
+    }
+  }
   public function Login($mb_id, $mb_password) {
     global $g5;
     if (!$mb_id || !$mb_password) $this->msg('회원아이디나 비밀번호가 공백이면 안됩니다.');
@@ -100,7 +146,7 @@ class Gnuboard_api extends commonlib {
       $jwt = JWT::encode($payload, $this->key);
       setcookie($this->cookiename, $jwt, strtotime("+7 day", time()), '/');
       $decoded = JWT::decode($jwt, $this->key, array('HS256'));
-      echo $this->msg('로그인 성공');
+      return $this->data_encode($this->get_member($mb_id));
     }
   }
   public function get_board() {

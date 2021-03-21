@@ -3,13 +3,40 @@ if (!defined('_GNUBOARD_')) exit;
 trait get_datalib {
   public function get_config() {
     global $g5;
-    $res = $this->sql_fetch("SELECT * FROM {$g5['config_table']}");
-    return $res;
+    
+    static $cahce = [];
+
+    $cache = run_replace('get_config_cache', $cache, $is_cache);
+
+    if( $is_cache && !empty($cache) ){
+      return $cache;
+    }
+
+    $cache = run_replace('get_config', $this->sql_fetch("SELECT * FROM {$g5['config_table']}"));
+    return $cache;
   }
 
-  public function get_content_db($co_id){
+  public function get_content_db($co_id, $is_cache = false){
     global $g5;
-    $co = $this->sql_fetch("SELECT * FROM {$g5['content_table']} WHERE co_id = ?", [$co_id]);
+    $g5_object = $this->$g5_object;
+    static $cache = array();
+    
+    $type = 'content';
+
+    $co_id = preg_replace('/[^a-z0-9_]/i', '', $co_id);
+    $co = $g5_object->get($type, $co_id, $type);
+
+    if(!$co) {
+      $cache_file_name = "{$type}-{$co_id}-".g5_cache_secret_key();
+      $co = g5_get_cache($cache_file_name, 10800);
+      if( $co === false ){
+        $co = $this->sql_fetch("SELECT * FROM {$g5['content_table']} WHERE co_id = ?", [$co_id]);
+
+        g5_set_cache($cache_file_name, $co, 10800);
+      }
+
+      $g5_object->set($type, $co_id, $co, $type);
+    }
     return $co;
   }
 
@@ -19,30 +46,64 @@ trait get_datalib {
     $boards = run_replace('get_board_names_cache', $boards);
     if(!$boards ){
       $sql = " select bo_table from {$g5['board_table']} ";
-      $boards = $this->sql_query("SELECT bo_table FROM {$g5['board_table']}");
+      $result = $this->sql_query("SELECT bo_table FROM {$g5['board_table']}");
+      for($i=0;$i<count($result);$i++) {
+        $boards[] = $result[$i]['bo_table'];
+      }
     }
     return $boards;
   }
 
   public function get_board_db($bo_table){
     global $g5;
-    return $this->sql_fetch("SELECT * FROM {$g5['board_table']} WHERE bo_table = ?", [$bo_table]);
+
+    static $cache;
+
+    $bo_table = preg_replace('/[^a-z0-9_]/i', '', $bo_table);
+    $cache = run_replace('get_board_db_cache', $cache, $bo_table, $is_cache);
+    $key = md5($bo_table);
+
+    if( $is_cache && isset($cache[$key]) ){
+      return $cache[$key];
+    }
+
+    if( !($cache[$key] = run_replace('get_board_db', array(), $bo_table)) ){
+      $board = $this->sql_fetch("SELECT * FROM {$g5['board_table']} WHERE bo_table = ?", [$bo_table]);
+      $board_defaults = array('bo_table'=>'', 'bo_skin'=>'', 'bo_mobile_skin'=>'', 'bo_upload_count' => 0, 'bo_use_dhtml_editor'=>'', 'bo_subject'=>'', 'bo_image_width'=>0);
+      $cache[$key] = array_merge($board_defaults, (array) $board);
+    }
+    
+    return $cache[$key];
   }
 
   public function get_menu_db($use_mobile=0, $is_cache=false){
     global $g5;
-    $res = $this->sql_query("SELECT * FROM {$g5['menu_table']} WHERE length(me_code) = ? ORDER By me_order, me_id", ['2']);
-    for($i=0;$i<count($res);$i++) {
-      $res[$i]['ori_me_link'] = $res[$i]['me_link'];
-      $res[$i]['me_link'] = $this->short_url_clean($res[$i]['me_link']);
-      $row2 = $this->sql_query("SELECT * FROM {$g5['menu_table']} WHERE length(me_code) = ? AND substring(me_code, 1,2) = ? ORDER By me_order, me_id", ['4', $res[$i]['me_code']]);
-      for($k=0;$k<count($row2);$k++) {
-        $row2[$i]['ori_me_link'] = $row2[$i]['me_link'];
-        $row2[$i]['me_link'] = $this->short_url_clean($row2[$i]['me_link']);
-        $res[$i]['sub'][$k] = $row2[$i];
+    static $cache = array();
+    $cache = run_replace('get_menu_db_cache', $cache, $use_mobile, $is_cache);
+    $key = md5($use_mobile);
+    if( $is_cache && isset($cache[$key]) ){
+      return $cache[$key];
+    }
+
+    $where = $use_mobile ? "me_mobile_use = '1'" : "me_use = '1'";
+    if( !($cache[$key] = run_replace('get_menu_db', array(), $use_mobile)) ) {
+      $res = $this->sql_query("SELECT * FROM {$g5['menu_table']} WHERE {$where} AND length(me_code) = '2' ORDER By me_order, me_id");      
+      for($i=0;$i<count($res);$i++) {
+        $res[$i]['ori_me_link'] = $res[$i]['me_link'];
+        $res[$i]['me_link'] = $this->short_url_clean($res[$i]['me_link']);
+        $res[$i]['sub'] = isset($res[$i]['sub']) ? $res[$i]['sub'] : array();
+        $cache[$key][$i] = $res;
+
+        $row2 = $this->sql_query("SELECT * FROM {$g5['menu_table']} WHERE length(me_code) = ? AND substring(me_code, 1,2) = ? ORDER By me_order, me_id", ['4', $res[$i]['me_code']]);
+        for($k=0;$k<count($row2);$k++) {
+          $row2[$i]['ori_me_link'] = $row2[$i]['me_link'];
+          $row2[$i]['me_link'] = $this->short_url_clean($row2[$i]['me_link']);
+          $res[$i]['sub'][$k] = $row2[$i];
+          $cache[$key][$i]['sub'][$k] = $row2[$i];
+        }
       }
     }
-    return $res;
+    return $cache[$key][0];
   }
 
   // 게시판 테이블에서 하나의 행을 읽음

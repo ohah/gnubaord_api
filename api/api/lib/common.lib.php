@@ -35,6 +35,7 @@ require 'jwt/autoload.php';
 require API_PATH.'/bbs/board.php';
 require API_PATH.'/bbs/email_certify.php';
 require API_PATH.'/bbs/download.php';
+require API_PATH.'/bbs/token.php';
 require API_PATH.'/bbs/good.php';
 require API_PATH.'/bbs/qa.php';
 require API_PATH.'/bbs/password.php';
@@ -82,6 +83,7 @@ class Commonlib {
   use profile;
   use delete;
   use download;
+  use token;
   use db_optimize;
   use search;
   use scrap;
@@ -145,22 +147,23 @@ class Commonlib {
     }
     return $result;
   }
-  function get_category_option($bo_table='', $ca_name='') {
+  public function get_category_option($bo_table='', $ca_name='') {
     global $g5;
     $is_admin = $this->is_admin;
     $board = $this->get_board_db($bo_table);
 
     $categories = explode("|", $board['bo_category_list'].($is_admin?"|공지":"")); // 구분자가 | 로 되어 있음
-    $str = "";
+    $str = array();
     for ($i=0; $i<count($categories); $i++) {
       $category = trim($categories[$i]);
       if (!$category) continue;
-
-      $str .= "<option value=\"$categories[$i]\"";
+      $str[$i]['value'] = $categories[$i];
+      $str[$i]['name'] = $categories[$i];
       if ($category == $ca_name) {
-        $str .= ' selected="selected"';
+        $str[$i]['selected'] = true;
+      }else{
+        $str[$i]['selected'] = false;
       }
-      $str .= ">$categories[$i]</option>\n";
     }
     return $str;
   }
@@ -186,24 +189,24 @@ class Commonlib {
     }
   }
   public function msg($msg) {
-    return json_encode(array('msg'=>$msg), JSON_UNESCAPED_UNICODE);
+    return $this->data_encode(array('msg'=>$msg));
   }
   public function alert($msg, $url = '') {
-    echo json_encode(array('msg'=>$msg, 'url'=> $url), JSON_UNESCAPED_UNICODE);
+    echo $this->data_encode(array('msg'=>$msg, 'url'=> $url));
     exit;
   }
-  public function captcha_html() {
+  public function captcha_html($class = '') {
     $config = $this->config;
-    if($config['cf_captcha'] == 'kcapthca') {
-      $this->kcaptcha_html();
+    if($config['cf_captcha'] == 'kcaptcha') {
+      return $this->kcaptcha_html($class);
     }else if($config['cf_captcha'] == 'recaptcha') {
     }else if($config['cf_captcha'] == 'recaptcha_inv') {
     }
   }
   public function chk_captcha() {
     $config = $this->config;
-    if($config['cf_captcha'] == 'kcapthca') {
-      $this->chk_kcaptcha();
+    if($config['cf_captcha'] == 'kcaptcha') {
+      return $this->chk_kcaptcha();
     }else if($config['cf_captcha'] == 'recaptcha') {
     }else if($config['cf_captcha'] == 'recaptcha_inv') {
     }
@@ -409,7 +412,7 @@ class Commonlib {
     return str_replace($source, $target, $str);
   }
   // 쿠키변수 생성
-  function set_cookie($cookie_name, $value, $expire) {
+  public function set_cookie($cookie_name, $value, $expire) {
     global $g5;
     setcookie(md5($cookie_name), base64_encode($value), G5_SERVER_TIME + $expire, '/', G5_COOKIE_DOMAIN);
   }
@@ -847,7 +850,7 @@ class Commonlib {
     $page = $this->page ? $this->page : 1;
     $qstr = '';
     foreach ($this->qstr as $key => $value) {
-      $qstr .= $key.'='.$value;
+      if($value) $qstr .= $key.'='.$value;
     }
 
     //$t = get_microtime();
@@ -1130,11 +1133,16 @@ class Commonlib {
 
     return $name;
   }
+  // 마이크로 타임을 얻어 계산 형식으로 만듦
+  public function get_microtime() {
+    list($usec, $sec) = explode(" ",microtime());
+    return ((float)$usec + (float)$sec);
+  }
   // 파일명 치환
-  function replace_filename($name) {
+  public function replace_filename($name) {
     @session_start();
     $ss_id = session_id();
-    $usec = get_microtime();
+    $usec = $this->get_microtime();
     $file_path = pathinfo($name);
     $ext = $file_path['extension'];
     $return_filename = sha1($ss_id.$_SERVER['REMOTE_ADDR'].$usec); 
@@ -1231,7 +1239,7 @@ class Commonlib {
   }
 
   public function sql_num_rows($result) {
-    return $res->fetchColumn();
+    return $result->fetchColumn();
   }
   // $result에 대한 메모리(memory)에 있는 내용을 모두 제거한다.
   // sql_free_result()는 결과로부터 얻은 질의 값이 커서 많은 메모리를 사용할 염려가 있을 때 사용된다.
@@ -1624,12 +1632,12 @@ class Commonlib {
     $result = false;
     if ($rel_table || $rel_id || $rel_action) {
       // 포인트 내역정보
-      $sql = "SELECT * FROM {$g5['point_table']}
-              WHERE mb_id = ?
-              AND po_rel_table = ?
-              AND po_rel_id = ?
-              AND po_rel_action = ? ";
-      $row = $this->sql_fetch($sql, [$mb_id, $rel_table, $rel_id, $rel_action]);
+      $sql = " select * from {$g5['point_table']}
+              where mb_id = '$mb_id'
+                and po_rel_table = '$rel_table'
+                and po_rel_id = '$rel_id'
+                and po_rel_action = '$rel_action' ";
+      $this->$row = $this->sql_fetch($sql);
 
       if($row['po_point'] < 0) {
         $mb_id = $row['mb_id'];
@@ -1642,24 +1650,26 @@ class Commonlib {
         }
       }
 
-      $result = $this->sql_query("DELETE from {$g5['point_table']}
-                WHERE mb_id = ?
-                AND po_rel_table = ?
-                AND po_rel_id = ?
-                AND po_rel_action = ? ", [$mb_id, $rel_table, $rel_id, $rel_action]);
+      $result = $this->sql_query(" delete from {$g5['point_table']}
+                where mb_id = '$mb_id'
+                  and po_rel_table = '$rel_table'
+                  and po_rel_id = '$rel_id'
+                  and po_rel_action = '$rel_action'");
       // po_mb_point에 반영
-      $sql = "UPDATE {$g5['point_table']}
-              SET po_mb_point = po_mb_point - ?
-              WHERE mb_id = ?
-              AND po_id > ?";
-      sql_query($sql, [$row['po_point'], $mb_id, $row['po_id']]);
+      if(isset($row['po_point'])) {
+        $sql = " update {$g5['point_table']}
+                set po_mb_point = po_mb_point - '{$row['po_point']}'
+                where mb_id = '$mb_id'
+                  and po_id > '{$row['po_id']}' ";
+        $this->sql_query($sql);
+      }
 
       // 포인트 내역의 합을 구하고
       $sum_point = $this->get_point_sum($mb_id);
 
       // 포인트 UPDATE
-      $sql = "UPDATE {$g5['member_table']} SET mb_point = ? WHERE mb_id = ?";
-      $result = $this->sql_qeury($sql, [$sum_point, $mb_id]);
+      $sql = " update {$g5['member_table']} set mb_point = '$sum_point' where mb_id = '$mb_id' ";
+      $result = $this->sql_query($sql);
     }
     return $result;
   }
@@ -1777,24 +1787,95 @@ class Commonlib {
     return $key;
   }
 
-  // 토큰 생성
-  public function _token() {
-    return md5(uniqid(rand(), true));
+
+  // QUERY STRING 에 포함된 XSS 태그 제거
+  public function clean_query_string($query, $amp=true) {
+    $qstr = trim($query);
+
+    parse_str($qstr, $out);
+
+    if(is_array($out)) {
+        $q = array();
+
+      foreach($out as $key=>$val) {
+        if(($key && is_array($key)) || ($val && is_array($val))){
+            $q[$key] = $val;
+            continue;
+        }
+
+        $key = strip_tags(trim($key));
+        $val = trim($val);
+
+        switch($key) {
+          case 'wr_id':
+            $val = (int)preg_replace('/[^0-9]/', '', $val);
+            $q[$key] = $val;
+            break;
+          case 'sca':
+            $val = clean_xss_tags($val);
+            $q[$key] = $val;
+            break;
+          case 'sfl':
+            $val = preg_replace("/[\<\>\'\"\\\'\\\"\%\=\(\)\s]/", "", $val);
+            $q[$key] = $val;
+            break;
+          case 'stx':
+            $val = get_search_string($val);
+            $q[$key] = $val;
+            break;
+          case 'sst':
+            $val = preg_replace("/[\<\>\'\"\\\'\\\"\%\=\(\)\s]/", "", $val);
+            $q[$key] = $val;
+            break;
+          case 'sod':
+            $val = preg_match("/^(asc|desc)$/i", $val) ? $val : '';
+            $q[$key] = $val;
+            break;
+          case 'sop':
+            $val = preg_match("/^(or|and)$/i", $val) ? $val : '';
+            $q[$key] = $val;
+            break;
+          case 'spt':
+            $val = (int)preg_replace('/[^0-9]/', '', $val);
+            $q[$key] = $val;
+            break;
+          case 'page':
+            $val = (int)preg_replace('/[^0-9]/', '', $val);
+            $q[$key] = $val;
+            break;
+          case 'w':
+            $val = substr($val, 0, 2);
+            $q[$key] = $val;
+            break;
+          case 'bo_table':
+            $val = preg_replace('/[^a-z0-9_]/i', '', $val);
+            $val = substr($val, 0, 20);
+            $q[$key] = $val;
+            break;
+          case 'gr_id':
+            $val = preg_replace('/[^a-z0-9_]/i', '', $val);
+            $q[$key] = $val;
+            break;
+          default:
+            $val = clean_xss_tags($val);
+            $q[$key] = $val;
+            break;
+        }
+      }
+
+      if($amp)
+        $sep = '&amp;';
+      else
+        $sep ='&';
+
+      $str = http_build_query($q, '', $sep);
+    } else {
+      $str = $this->clean_xss_tags($qstr);
+    }
+
+    return $str;
   }
 
-
-  // 불법접근을 막도록 토큰을 생성하면서 토큰값을 리턴
-  public function get_token() {
-    $token = md5(uniqid(rand(), true));
-    $this->set_session('ss_token', $token);
-
-    return $token;
-  }
-  // POST로 넘어온 토큰과 세션에 저장된 토큰 비교
-  public function check_token() {
-    $this->set_session('ss_token', '');
-    return true;
-  }
 
   public function check_mail_bot($ip=''){
     //아이피를 체크하여 메일 크롤링을 방지합니다.
@@ -1851,10 +1932,18 @@ class Commonlib {
       if(is_array($data)){
         for ($i=0; $i < count($data); $i++) { 
           if(isset($data[$i]['wr_ip'])) $data[$i]['wr_ip'] = preg_replace("/([0-9]+).([0-9]+).([0-9]+).([0-9]+)/", G5_IP_DISPLAY, $data[$i]['wr_ip']);
-          unset($data[$i]['wr_password']);
+          if(is_array($data[$i])){
+            for ($k=0; $k < count($data[$i]); $k++) { 
+              if(isset($data[$i][$k]['wr_password']))
+                $data[$i][$k]['wr_password'] = "";
+            }
+          }
+          if(isset($data[$i]['wr_password']))
+            $data[$i]['wr_password'] = "";
         }
       }
-      unset($data['wr_password']);
+      if(isset($data['wr_password']))
+        $data['wr_password'] = "";
       if(isset($data['wr_ip'])) $data['wr_ip'] = preg_replace("/([0-9]+).([0-9]+).([0-9]+).([0-9]+)/", G5_IP_DISPLAY, $data['wr_ip']);
 
       unset($data['mb_password']);

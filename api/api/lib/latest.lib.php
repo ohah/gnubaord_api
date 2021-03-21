@@ -79,8 +79,9 @@ trait latestlib {
 
     $result = array();
     $result['bo_subject'] = $bo_subject;
+    $result['url'] = $this->get_pretty_url($bo_table);
     $result['list'] = $this->unset_data($list);
     //return $result;
-    return json_encode($result, JSON_UNESCAPED_UNICODE);
+    return $this->data_encode($result);
   }
 }

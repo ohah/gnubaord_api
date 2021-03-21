@@ -11,13 +11,18 @@ trait urllib{
     $boards = $this->get_board_names();
     $segments = array();
     $url = $add_query = '';
+
+    if( $url = run_replace('get_pretty_url', $url, $folder, $no, $query_string, $action) ){
+      return $url;
+    }
+
     // use shortten url
     if($config['cf_bbs_rewrite']) {
       $segments[0] = G5_URL;
       if( $folder === 'content' && $no ) {     // 내용관리
         $segments[1] = $folder;
         if( $config['cf_bbs_rewrite'] > 1 ){
-          $get_content = $this->sql_fetch("SELECT * FROM {$g5['content_table']} WHERE co_id = ?", [$no]);
+          $get_content = $this->get_contnt_db($no, true);
           $segments[2] = $get_content['co_seo_title'] ? urlencode($get_content['co_seo_title']).'/' : urlencode($no);
         } else {
           $segments[2] = urlencode($no);
@@ -28,7 +33,7 @@ trait urllib{
         if($no) {
           if( $config['cf_bbs_rewrite'] > 1 ){
             $write_table = $g5['write_prefix'].$folder;
-            $get_wrtie = $this->sql_query("SELECT * FROM {$write_table} WHERE wr_id = ?",[$wr_id]);
+            $get_wrtie = $this->get_write($g5['write_prefix'].$folder, $no, true);
             $segments[2] = $get_write['wr_seo_title'] ? urlencode($get_write['wr_seo_title']).'/' : urlencode($no);
           } else {
             $segments[2] = urlencode($no);
@@ -56,11 +61,11 @@ trait urllib{
       if(in_array($folder, $boards)) {
         $url = G5_BBS_URL. '/board.php?bo_table='. $folder;
         if($no) {
-          $url .= '&amp;wr_id='. $no;
+          $url .= '&wr_id='. $no;
         }
         if($query_string) {
           if(substr($query_string, 0, 1) !== '&') {
-            $url .= '&amp;';
+            $url .= '&';
           }
           $url .= $query_string;
         }
@@ -70,12 +75,13 @@ trait urllib{
             $url .= ($folder === 'content') ? '?co_id='. $no : '?'. $no;
           }
           if($query_string) {
-            $url .= ($no ? '?' : '&amp;'). $query_string;
+            $url .= ($no ? '?' : '&'). $query_string;
           }
       }
       $segments[0] = $url;
     }
-    return implode('/', $segments).$add_query;
+    
+    return str_replace(".php" , "", implode('/', $segments).$add_query);
   }
 
   public function short_url_clean($string_url, $add_qry='') {
@@ -130,11 +136,11 @@ trait urllib{
       $add_param = '';
 
       if( $result = array_diff_key($vars, $allow_param_keys ) ){
-        $add_param = '?'.http_build_query($result,'','&amp;');
+        $add_param = '?'.http_build_query($result,'','&');
       }
 
       if( $add_qry ){
-        $add_param .= $add_param ? '&amp;'.$add_qry : '?'.$add_qry;
+        $add_param .= $add_param ? '&'.$add_qry : '?'.$add_qry;
       }
 
       foreach($s as $k => $v) { $return_url .= '/'.$v; }
@@ -142,7 +148,7 @@ trait urllib{
       return $host.$return_url.$add_param.$fragment;
     }
 
-    return $string_url;
+    return str_replace(".php", "", $string_url);
   }
 
   public function correct_goto_url($url){

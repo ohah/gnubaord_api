@@ -2,13 +2,13 @@
 trait bbs_list {
   public function get_bbs_list($bo_table) {
     global $g5;
-    $sca = $this->$sca;
-    $sfl = $this->$sfl;
-    $stx = $this->$stx;
-    $sst = $this->$sst;
-    $sod = $this->$sod;
-    $spt = $this->$spt;
-    $page = $this->$page;
+    $sca = $this->qstr['sca'];
+    $sfl = $this->qstr['sfl'];
+    $stx = $this->qstr['stx'];
+    $sst = $this->qstr['sst'];
+    $sod = $this->qstr['sod'];
+    $spt = $this->qstr['spt'];
+    $page = $this->qstr['page'];
     $write_table = $g5['write_prefix'].$bo_table;
     $res = $this->sql_query("SELECT * FROM {$write_table}");
     $member = $this->member;
@@ -16,7 +16,7 @@ trait bbs_list {
     $board = $this->get_board_db($bo_table);
     $qstr = '';
     foreach ($this->qstr as $key => $value) {
-      $qstr .= $key.'='.$value;
+      if($value) $qstr .= $key.'='.$value;
     }
     
     $category_option = array();
@@ -46,7 +46,7 @@ trait bbs_list {
 
     $sop = strtolower($sop);
     if ($sop != 'and' && $sop != 'or')
-        $sop = 'and';
+      $sop = 'and';
 
     // 분류 선택 또는 검색어가 있다면
     $stx = trim($stx);
@@ -271,18 +271,32 @@ trait bbs_list {
     }
 
     $stx = $this->get_text(stripslashes($stx));
-
+    $colspan = 5;
+    if ($is_checkbox) $colspan++;
+    if ($is_good) $colspan++;
+    if ($is_nogood) $colspan++;
     /*
     [bo_use_list_view] => 0
     [bo_use_list_file] => 0
     [bo_use_list_content] => 0
     */
-    $result = array();
-    $result['page'] = $write_pages;
+    $result = [];
+    $result['write_pages'] = $write_pages;
+    $result['total_page'] = $total_page;
+    $result['total_count'] = $total_count;
+    $result['page'] = $page;
     $result['write_href'] = $write_href;
     $result['bo_gallery_cols'] = $bo_gallery_cols;
     $result['td_width'] = $td_width;
     $result['list'] = $this->unset_data($list);
-    return json_encode($result, JSON_UNESCAPED_UNICODE);
+    $result['qstr'] = $qstr;
+    $result['is_category'] = $is_category;
+    $result['admin_href'] = $admin_href;
+    $result['rss_href'] = $rss_href;
+    $result['is_checkbox'] = $is_checkbox;
+    $result['colspan'] = $colspan;
+    $result['is_good'] = $is_good;
+    $result['is_nogood'] = $is_nogood;
+    return $this->data_encode($result);
   }
 }

@@ -1,6 +1,6 @@
 <?php
-//error_reporting(E_ALL);
-//ini_set("display_errors", 1);
+error_reporting(E_ALL);
+ini_set("display_errors", 1);
 header('Content-Type: application/json');  // <-- header declaration
 require 'router/autoload.php';
 require 'api/api.php';
@@ -11,13 +11,21 @@ $router->get('/', function() use ($api) {
   echo "테스트 그누보드입니다.";
   //$api->sql_query();
 });
-$router->match('GET|POST', '/Auth/{mb_id}', function($mb_id) use ($api) {  
+$router->match('POST', '/Login', function() use ($api) {  
+  $_POST = $api->getPostData();
   if(!$_POST['mb_password']) {
     $api->alert('패스워드를 입력해주세요');
     exit;
   }
+  $mb_id = $_POST['mb_id'];
   $mb_password = $_POST['mb_password'];
-  $api->Login($mb_id, $mb_password);
+  echo $api->Login($mb_id, $mb_password);
+});
+$router->match('POST|PUT', '/Logout', function() use ($api) {  
+  echo $api->Logout();
+});
+$router->match('POST|PUT', '/LoginCheck', function() use ($api) {  
+  echo $api->LoginCheck();
 });
 $router->match('GET', '/configs', function() use ($api) {
   echo json_encode($api->get_config(), JSON_UNESCAPED_UNICODE);
@@ -61,6 +69,12 @@ $router->mount('/member', function() use ($router, $api) {
 $router->match('GET', '/boards', function() use ($api){
   echo $api->get_board();
 });
+/**
+ * @param qstr;
+ */
+$router->match('GET', '/search', function() use ($api) { //검색
+  echo $api->search();
+});
 $router->mount('/board', function() use ($router, $api) {
   $router->match('GET', '/new_articles', function() use ($api){
     echo $api->get_new_articles();
@@ -77,7 +91,7 @@ $router->mount('/board', function() use ($router, $api) {
    * @param wr_id address;
    * @param good,nogood address;
    */
-  $router->match('POST|PUT', '/{bo_table}/{wr_id}/{good}', function($bo_table, $wr_id, $good) use ($api) {
+  $router->match('POST|PUT', '/good/{bo_table}/{wr_id}/{good}', function($bo_table, $wr_id, $good) use ($api) {
     echo $api->good($bo_table, $wr_id, $good);
   });
   $router->get('/{bo_table}/{wr_id}/files', function($bo_table, $wr_id) use ($api) {
@@ -85,7 +99,7 @@ $router->mount('/board', function() use ($router, $api) {
     echo $api->get_board_file($bo_table, $wr_id);
   });
   $router->get('/{bo_table}/{wr_id}/comments', function($bo_table, $wr_id) use ($api) {
-    $api->board_chk($bo_table, $wr_id);
+    //$api->board_chk($bo_table, $wr_id);
     echo $api->get_cmt_list($bo_table, $wr_id);
   });
   $router->get('/{bo_table}/{wr_id}/comment/{comment_id}/good', function($bo_table, $wr_id, $comment_id) use ($api) {
@@ -108,7 +122,7 @@ $router->mount('/board', function() use ($router, $api) {
    * @param comment_id address;
    */
   $router->match('DELETE|POST', '/{bo_table}/{wr_id}/comment/{comment_id}', function($bo_table, $wr_id, $comment_id) use ($api) {    
-    echo $api->delete_comment($bo_table, $wr_id);
+    echo $api->delete_comment($bo_table, $comment_id);
   });
   /**
    * 글보기 view.php
@@ -141,6 +155,17 @@ $router->mount('/board', function() use ($router, $api) {
     echo $api->delete_all($bo_table, $wr_id);
   });
 });
+
+/**
+ * 코멘트 쓰기
+ * @param write_comment_update(코멘트수정(cu))
+ * @param write_comment_update(코멘트쓰기(c))
+ */
+$router->mount('/write_comment', function() use ($router, $api) {
+  $router->match('GET|POST', '/{bo_table}/{wr_id}/{w}', function($bo_table, $wr_id, $w) use ($api) {
+    echo $api->write_comment_update($bo_table, $wr_id, $w);
+  });
+});
 /**
  * 글쓰기
  * @param write(글수정)
@@ -165,7 +190,7 @@ $router->mount('/write', function() use ($router, $api) {
   });
 });
 $router->match('GET', '/menus', function() use ($api){
-  echo json_encode($api->get_menu_db(), JSON_UNESCAPED_UNICODE);
+  echo $api->data_encode($api->get_menu_db());
 });
 $router->match('GET', '/autosave', function() use ($api){
   echo $api->get_autosave();
@@ -184,6 +209,8 @@ $router->match('GET', '/profile/{mb_id}', function($mb_id) use ($api){
  * @param wr_id wr_id 값
  */
 $router->match('POST', '/password/{w}/{bo_table}/{wr_id}', function($w, $bo_table, $wr_id) use ($api){
+  //$_POST = $api->getPostData();
+  //if($_POST['input']) echo $api->password($w, $bo_table, $wr_id);
   echo $api->password_check($w, $bo_table, $wr_id);
 });
 /**
@@ -236,12 +263,24 @@ $router->match('GET', '/t', function() use ($api) {
   echo json_encode($api->chk_captcha(), JSON_UNESCAPED_UNICODE);
 });
 $router->mount('/captcha', function() use ($router, $api) {
-  $router->match('GET', '/K', function() use ($api) {
+  $router->match('GET|POST', '/K', function() use ($api) {
+    $_POST = isset($_POST['refresh']) ? $_POST : $api->getPostData();
+    if($_POST['refresh']) {
+      echo $api->data_encode($api->captcha_html());
+      exit;
+    }
     require API_PATH.'/plugin/kcaptcha/kcaptcha_image.php';
   });
 });
 
 $router->match('GET', '/download/{no}', function($no) use ($router, $api) {
   $api->download($no);
+});
+
+$router->post('get_write_token/{bo_table}', function($bo_table) use ($api) {
+  echo $api->set_write_token($bo_table);
+});
+$router->post('get_write_comment_token', function() use ($api) {
+  echo $api->set_comment_token();
 });
 $router->run();

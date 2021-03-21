@@ -2,25 +2,26 @@
 trait view_comment {
   public function get_cmt_list($bo_table, $wr_id) {
     global $g5;
-    $write_table = $g5['write_prefix'].$bo_table;
-    $sca = $this->$sca;
-    $sfl = $this->$sfl;
-    $stx = $this->$stx;
-    $sst = $this->$sst;
-    $sod = $this->$sod;
-    $spt = $this->$spt;
-    $page = $this->$page;
+    $sca = $this->qstr['sca'];
+    $sfl = $this->qstr['sfl'];
+    $stx = $this->qstr['stx'];
+    $sst = $this->qstr['sst'];
+    $sod = $this->qstr['sod'];
+    $spt = $this->qstr['spt'];
+    $page = $this->qstr['page'];
     $write_table = $g5['write_prefix'].$bo_table;
     $write = $this->get_write($write_table, $wr_id);
     $member = $this->member;
     $config = $this->config;
     $board = $this->get_board_db($bo_table);
     $is_admin = $this->is_admin;
-    $is_guest = $this->$is_guest;
+    $is_guest = $this->is_guest;
     $is_member = $this->is_member;
+    $qstr = '';
+    foreach ($this->qstr as $key => $value) {
+      if($value) $qstr .= $key.'='.$value;
+    }
 
-
-    $captcha_url = "";
     if ($is_guest && $board['bo_comment_level'] < 2) {
       $captcha_html = $this->captcha_html('_comment');
     }
@@ -43,7 +44,6 @@ trait view_comment {
       $row = $result[$i];
       $list[$i] = $row;
   
-      //$list[$i]['name'] = get_sideview($row['mb_id'], cut_str($row['wr_name'], 20, ''), $row['wr_email'], $row['wr_homepage']);
   
       $tmp_name = $this->get_text($this->cut_str($row['wr_name'], $config['cf_cut_name'])); // 설정된 자리수 만큼만 이름 출력
       if ($board['bo_use_sideview'])
@@ -90,13 +90,16 @@ trait view_comment {
         if ($member['mb_id']) {
           if ($row['mb_id'] === $member['mb_id'] || $is_admin) {
             $this->set_session('ss_delete_comment_'.$row['wr_id'].'_token', $token = uniqid(time()));
-            $list[$i]['del_link']  = G5_BBS_URL.'/delete_comment.php?bo_table='.$bo_table.'&amp;comment_id='.$row['wr_id'].'&amp;token='.$token.'&amp;page='.$page.$qstr;
+            $list[$i]['is_permission']  = true;
+            $list[$i]['token'] = $token;
             $list[$i]['is_edit']   = true;
             $list[$i]['is_del']    = true;
           }
         } else {
           if (!$row['mb_id']) {
-            $list[$i]['del_link'] = G5_BBS_URL.'/password.php?w=x&amp;bo_table='.$bo_table.'&amp;comment_id='.$row['wr_id'].'&amp;page='.$page.$qstr;
+            $list[$i]['is_permission'] = false;
+            $this->set_session('ss_delete_comment_'.$row['wr_id'].'_token', $token = uniqid(time()));
+            $list[$i]['token'] = $token;
             $list[$i]['is_del']   = true;
           }
         }
@@ -126,13 +129,26 @@ trait view_comment {
       $comment_max = (int)$board['bo_comment_max'];
     }
 
+    for ($i=0; $i<count($list); $i++) {
+      $list[$i]['comment_id'] = $list[$i]['wr_id'];
+      $list[$i]['cmt_depth'] = strlen($list[$i]['wr_comment_reply']) * 50;
+      $list[$i]['comment'] = $list[$i]['content'];
+      $list[$i]['comment'] = preg_replace("/\[\<a\s.*href\=\"(http|https|ftp|mms)\:\/\/([^[:space:]]+)\.(mp3|wma|wmv|asf|asx|mpg|mpeg)\".*\<\/a\>\]/i", "<script>doc_write(obj_movie('$1://$2.$3'));</script>", $comment);
+      $list[$i]['cmt_sv'] = $cmt_amt - $i + 1; // 댓글 헤더 z-index 재설정 ie8 이하 사이드뷰 겹침 문제 해결
+      $list[$i]['c_reply_href'] = $comment_common_url.'&c_id='.$comment_id.'&w=c#bo_vc_w';
+      $list[$i]['c_edit_href'] = $comment_common_url.'&c_id='.$comment_id.'&w=cu#bo_vc_w';
+      $list[$i]['is_comment_reply_edit'] = ($list[$i]['is_reply'] || $list[$i]['is_edit'] || $list[$i]['is_del']) ? 1 : 0;
+    }
 
     $result = array();
+    $result['cmt_amt'] = count($list);
     $result['is_comment_write'] = $is_comment_write;
     $result['comment_min'] = $comment_min;
     $result['comment_max'] = $comment_max;
     $result['captcha_html'] = $captcha_html;
+    $result['board'] = $board;
+    $result['comment_common_url'] = $this->short_url_clean(G5_BBS_URL.'/board.php?'.$this->clean_query_string($_SERVER['QUERY_STRING']));
     $result['list'] = $this->unset_data($list);
-    return json_encode($result, JSON_UNESCAPED_UNICODE);
+    return $this->data_encode($result, JSON_UNESCAPED_UNICODE);
   }
 }

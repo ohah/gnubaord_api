@@ -2,18 +2,24 @@
 trait board {
   public function board_chk($bo_table, $wr_id = '') {
     global $g5;
-    $sca = $this->$sca;
-    $sfl = $this->$sfl;
-    $stx = $this->$stx;
-    $sst = $this->$sst;
-    $sod = $this->$sod;
-    $spt = $this->$spt;
-    $page = $this->$page;
+    $sca = $this->qstr['sca'];
+    $sfl = $this->qstr['sfl'];
+    $stx = $this->qstr['stx'];
+    $sst = $this->qstr['sst'];
+    $sod = $this->qstr['sod'];
+    $spt = $this->qstr['spt'];
+    $page = $this->qstr['page'];
     $write_table = $g5['write_prefix'].$bo_table;
-    $write = $this->get_write($write_table, $wr_id);
+    $res = $this->sql_query("SELECT * FROM {$write_table}");
     $member = $this->member;
     $config = $this->config;
     $board = $this->get_board_db($bo_table);
+    $qstr = '';
+    foreach ($this->qstr as $key => $value) {
+      if($value) $qstr .= $key.'='.$value;
+    }
+    $write_table = $g5['write_prefix'].$bo_table;
+    $write = $this->get_write($write_table, $wr_id);
     $is_admin = $this->is_admin;
     $is_guest = $this->$is_guest;
     $is_member = $this->is_member;
@@ -89,8 +95,8 @@ trait board {
           if (!$is_owner) {
             if (!$this->get_session($ss_name)) {
               $pass = $this->password('s', $bo_table, $wr_id);
-              if($pass['action']) {
-                echo json_encode($pass, JSON_UNESCAPED_UNICODE);
+              if(is_array($pass) && $pass['action']) {
+                echo $this->data_encode($pass);
                 exit;
               }
             }

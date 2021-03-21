@@ -172,6 +172,7 @@ trait write_update{
     }
     
     $is_use_captcha = ((($board['bo_use_captcha'] && $w !== 'u') || $this->is_guest) && !$this->is_admin) ? 1 : 0;
+    $is_cpatcha_check = $this->chk_captcha();
     if ($is_use_captcha && !$this->chk_captcha()) {
       $this->alert('자동등록방지 숫자가 틀렸습니다.');
     }
@@ -202,7 +203,6 @@ trait write_update{
         $wr_name = $this->clean_xss_tags(trim($_POST['wr_name']));
         if (!$wr_name) {
           $this->alert('이름은 필히 입력하셔야 합니다.');
-          //exit;
         }
         $wr_password = $this->get_encrypt_string($wr_password);
         $wr_email = $this->get_email_address(trim($_POST['wr_email']));
@@ -220,57 +220,58 @@ trait write_update{
         $wr_reply = '';
       }
 
-      $sql = "INSERT INTO {$write_table}
-      SET wr_num = ?,
-           wr_reply = ?,
-           wr_comment = ?,
-           ca_name = ?,
-           wr_option = ?,
-           wr_subject = ?,
-           wr_content = ?,
-           wr_seo_title = ?,
-           wr_link1 = ?,
-           wr_link2 = ?,
-           wr_link1_hit = ?,
-           wr_link2_hit = ?,
-           wr_hit = ?,
-           wr_good = ?,
-           wr_nogood = ?,
-           mb_id = ?,
-           wr_password = ?,
-           wr_name = ?,
-           wr_email = ?,
-           wr_homepage = ?,
-           wr_datetime = ?,
-           wr_last = ?,
-           wr_ip = ?,
-           wr_1 = ?,
-           wr_2 = ?,
-           wr_3 = ?,
-           wr_4 = ?,
-           wr_5 = ?,
-           wr_6 = ?,
-           wr_7 = ?,
-           wr_8 = ?,
-           wr_9 = ?,
-           wr_10 = ? ";
+      $sql = "INSERT INTO $write_table
+              SET wr_num = '$wr_num',
+                  wr_reply = '$wr_reply',
+                  wr_comment = 0,
+                  ca_name = '$ca_name',
+                  wr_option = '$html,$secret,$mail',
+                  wr_subject = '$wr_subject',
+                  wr_content = '$wr_content',
+                  wr_seo_title = '$wr_seo_title',
+                  wr_link1 = '$wr_link1',
+                  wr_link2 = '$wr_link2',
+                  wr_link1_hit = 0,
+                  wr_link2_hit = 0,
+                  wr_hit = 0,
+                  wr_good = 0,
+                  wr_nogood = 0,
+                  mb_id = '{$member['mb_id']}',
+                  wr_password = '$wr_password',
+                  wr_name = '$wr_name',
+                  wr_email = '$wr_email',
+                  wr_homepage = '$wr_homepage',
+                  wr_datetime = '".G5_TIME_YMDHIS."',
+                  wr_last = '".G5_TIME_YMDHIS."',
+                  wr_ip = '{$_SERVER['REMOTE_ADDR']}',
+                  wr_1 = '$wr_1',
+                  wr_2 = '$wr_2',
+                  wr_3 = '$wr_3',
+                  wr_4 = '$wr_4',
+                  wr_5 = '$wr_5',
+                  wr_6 = '$wr_6',
+                  wr_7 = '$wr_7',
+                  wr_8 = '$wr_8',
+                  wr_9 = '$wr_9',
+                  wr_10 = '$wr_10'";
            
-      $res = $this->sql_query($sql, [$wr_num, $wr_reply, '0', $ca_name, $html.','.$secret.','.$mail, $wr_subject, $wr_content, $wr_seo_title, $wr_link1, $wr_link2, '0','0','0','0','0', $this->member['mb_id'], $wr_password, $wr_name, $wr_email, $wr_homepage, G5_TIME_YMDHIS, G5_TIME_YMDHIS, $_SERVER['REMOTE_ADDR'], $wr_1, $wr_2, $wr_3, $wr_4, $wr_5, $wr_6, $wr_7, $wr_8, $wr_9, $wr_10]);
+      $res = $this->sql_query($sql);
       
       $wr_id = $this->db->lastInsertId();
 
       // 부모 아이디에 UPDATE
-      $this->sql_query("UPDATE {$write_table} SET wr_parent = ? WHERE wr_id ?", [$wr_id, $wr_id]);
+      $this->sql_query("update $write_table set wr_parent = '$wr_id' where wr_id = '$wr_id' ");
 
       // 새글 INSERT
-      $this->sql_query("INSERT INTO {$g5['board_new_table']} (bo_table, wr_id, wr_parent, bn_datetime, mb_id) VALUES (?, ?, ?, ?, ?)",[$bo_table, $wr_id, $wr_id, G5_TIME_YMDHIS, $this->member['mb_id']]);
+      $this->sql_query(" insert into {$g5['board_new_table']} ( bo_table, wr_id, wr_parent, bn_datetime, mb_id ) values ( '{$bo_table}', '{$wr_id}', '{$wr_id}', '".G5_TIME_YMDHIS."', '{$member['mb_id']}' ) ");
       // 게시글 1 증가
-      $this->sql_query("UPDATE {$g5['board_table']} SEt bo_count_write = bo_count_write + 1 WHERE bo_table = ?", [$bo_table]);
+      $this->sql_query("update {$g5['board_table']} set bo_count_write = bo_count_write + 1 where bo_table = '{$bo_table}'");
+      
       // 쓰기 포인트 부여
       if ($w == '') {
         if ($notice) {
           $bo_notice = $wr_id.($board['bo_notice'] ? ",".$board['bo_notice'] : '');
-          $this->sql_query("UPDATE {$g5['board_table']} SET bo_notice = ? WHERE bo_table = ?",[$bo_table, $bo_table]);
+          $this->sql_query(" update {$g5['board_table']} set bo_notice = '{$bo_notice}' where bo_table = '{$bo_table}' ");
         }
         $this->insert_point($member['mb_id'], $board['bo_write_point'], "{$board['bo_subject']} {$wr_id} 글쓰기", $bo_table, $wr_id, '쓰기');
       } else {
@@ -280,8 +281,9 @@ trait write_update{
       } 
     } else if ($w == 'u') { // 글 수정
       if ($this->get_session('ss_bo_table') != $_POST['bo_table'] || $this->get_session('ss_wr_id') != $_POST['wr_id']) {
-        //$this->alert('올바른 방법으로 수정하여 주십시오.');
+        $this->alert('올바른 방법으로 수정하여 주십시오.');
       }
+      $return_url = $this->get_pretty_url($bo_table, $wr_id);
       if ($this->is_admin == 'super'){ // 최고관리자 통과
         ;
       }else if ($this->is_admin == 'group') { // 그룹관리자
@@ -335,7 +337,7 @@ trait write_update{
         $mb_id = "";
         // 비회원의 경우 이름이 누락되는 경우가 있음
         if (!trim($wr_name)) $this->alert("이름은 필히 입력하셔야 합니다.");
-        $wr_name = trim($_POST['wr_name']);
+        $wr_name = $this->clean_xss_tags(trim($_POST['wr_name']));
         $wr_email = $this->get_email_address(trim($_POST['wr_email']));
       }
 
@@ -344,348 +346,347 @@ trait write_update{
       $sql_ip = '';
       if (!$this->is_admin) $sql_ip = " , wr_ip = '{$_SERVER['REMOTE_ADDR']}' ";
 
-      $sql = "UPDATE {$write_table}
-              SET ca_name = ?,
-                    wr_option = ?,
-                    wr_subject = ?,
-                    wr_content = ?,
-                    wr_seo_title = ?,
-                    wr_link1 = ?,
-                    wr_link2 = ?,
-                    mb_id = ?,
-                    wr_name = ?,
-                    wr_email = ?,
-                    wr_homepage = ?,
-                    wr_1 = ?,
-                    wr_2 = ?,
-                    wr_3 = ?,
-                    wr_4 = ?,
-                    wr_5 = ?,
-                    wr_6 = ?,
-                    wr_7 = ?,
-                    wr_8 = ?,
-                    wr_9 = ?,
-                    wr_10= ?
-                    {$sql_ip}
-                    {$sql_password}
-              WHERE wr_id = ?";
-        $this->sql_query($sql, [$ca_name, $html.','.$secret.','.$mail, $wr_subject, $wr_content, $wr_seo_title, $wr_link1, $wr_link2, $mb_id, $wr_name, $wr_email, $wr_homepage, $wr_1, $wr_2, $wr_3, $wr_4, $wr_5, $wr_6, $wr_7, $wr_8, $wr_9, $wr_10, $wr['wr_id']]);
+      $sql = " update {$write_table}
+                set ca_name = '{$ca_name}',
+                     wr_option = '{$html},{$secret},{$mail}',
+                     wr_subject = '{$wr_subject}',
+                     wr_content = '{$wr_content}',
+                     wr_seo_title = '$wr_seo_title',
+                     wr_link1 = '{$wr_link1}',
+                     wr_link2 = '{$wr_link2}',
+                     mb_id = '{$mb_id}',
+                     wr_name = '{$wr_name}',
+                     wr_email = '{$wr_email}',
+                     wr_homepage = '{$wr_homepage}',
+                     wr_1 = '{$wr_1}',
+                     wr_2 = '{$wr_2}',
+                     wr_3 = '{$wr_3}',
+                     wr_4 = '{$wr_4}',
+                     wr_5 = '{$wr_5}',
+                     wr_6 = '{$wr_6}',
+                     wr_7 = '{$wr_7}',
+                     wr_8 = '{$wr_8}',
+                     wr_9 = '{$wr_9}',
+                     wr_10= '{$wr_10}'
+                     {$sql_ip}
+                     {$sql_password}
+              where wr_id = '{$wr['wr_id']}' ";
+      $this->sql_query($sql);
 
-        // 분류가 수정되는 경우 해당되는 코멘트의 분류명도 모두 수정함
-        // 코멘트의 분류를 수정하지 않으면 검색이 제대로 되지 않음
-        $sql = "UPDATE {$write_table} SET ca_name = ? WHERE wr_parent = ?";
-        $this->sql_query($sql, [$ca_name, $wr['wr_id']]);
+      // 분류가 수정되는 경우 해당되는 코멘트의 분류명도 모두 수정함
+      // 코멘트의 분류를 수정하지 않으면 검색이 제대로 되지 않음
+      $sql = " update {$write_table} set ca_name = '{$ca_name}' where wr_parent = '{$wr['wr_id']}' ";
+      $this->sql_query($sql);
 
-        $bo_notice = $this->board_notice($board['bo_notice'], $wr_id, $notice);
-        $this->sql_query("UPDATE {$g5['board_table']} SET bo_notice = '{$bo_notice}' WHERE bo_table = '{$bo_table}'");
-        // 글을 수정한 경우에는 제목이 달라질수도 있으니 static variable 를 새로고침합니다.
-        $write = $this->get_write($write_table, $wr['wr_id']);
+      $bo_notice = $this->board_notice($board['bo_notice'], $wr_id, $notice);
+      $this->sql_query("UPDATE {$g5['board_table']} SET bo_notice = '{$bo_notice}' WHERE bo_table = '{$bo_table}'");
+      // 글을 수정한 경우에는 제목이 달라질수도 있으니 static variable 를 새로고침합니다.
+      $write = $this->get_write($write_table, $wr['wr_id']);
+    }
 
-        // 게시판그룹접근사용을 하지 않아야 하고 비회원 글읽기가 가능해야 하며 비밀글이 아니어야 합니다.
-        if (!$group['gr_use_access'] && $board['bo_read_level'] < 2 && !$secret) {
-          $this->naver_syndi_ping($bo_table, $wr_id);
-        }
 
-        // 파일개수 체크
-        $file_count   = 0;
-        $upload_count = (isset($_FILES['bf_file']['name']) && is_array($_FILES['bf_file']['name'])) ? count($_FILES['bf_file']['name']) : 0;
 
-        for ($i=0; $i<$upload_count; $i++) {
-          if($_FILES['bf_file']['name'][$i] && is_uploaded_file($_FILES['bf_file']['tmp_name'][$i]))
-            $file_count++;
-        }
+    // 게시판그룹접근사용을 하지 않아야 하고 비회원 글읽기가 가능해야 하며 비밀글이 아니어야 합니다.
+    if (!$group['gr_use_access'] && $board['bo_read_level'] < 2 && !$secret) {
+      $this->naver_syndi_ping($bo_table, $wr_id);
+    }
 
-        if($w == 'u') {
-          $file = $this->get_file($bo_table, $wr_id);
-          if($file_count && (int)$file['count'] > $board['bo_upload_count']) {
-            $this->alert('기존 파일을 삭제하신 후 첨부파일을 '.number_format($board['bo_upload_count']).'개 이하로 업로드 해주십시오.');
+    // 파일개수 체크
+    $file_count   = 0;
+    $upload_count = (isset($_FILES['bf_file']['name']) && is_array($_FILES['bf_file']['name'])) ? count($_FILES['bf_file']['name']) : 0;
+
+    for ($i=0; $i<$upload_count; $i++) {
+      if($_FILES['bf_file']['name'][$i] && is_uploaded_file($_FILES['bf_file']['tmp_name'][$i]))
+        $file_count++;
+    }
+
+    if($w == 'u') {
+      $file = $this->get_file($bo_table, $wr_id);
+      if($file_count && (int)$file['count'] > $board['bo_upload_count']) {
+        $this->alert('기존 파일을 삭제하신 후 첨부파일을 '.number_format($board['bo_upload_count']).'개 이하로 업로드 해주십시오.');
+      }
+    } else {
+      if($file_count > $board['bo_upload_count']) {
+        $this->alert('첨부파일을 '.number_format($board['bo_upload_count']).'개 이하로 업로드 해주십시오.');
+      }
+    }
+
+    // 디렉토리가 없다면 생성합니다. (퍼미션도 변경하구요.)
+    @mkdir(G5_DATA_PATH.'/file/'.$bo_table, G5_DIR_PERMISSION);
+    @chmod(G5_DATA_PATH.'/file/'.$bo_table, G5_DIR_PERMISSION);
+
+    $chars_array = array_merge(range(0,9), range('a','z'), range('A','Z'));
+
+    // 가변 파일 업로드
+    $file_upload_msg = '';
+    $upload = array();
+
+    if(isset($_FILES['bf_file']['name']) && is_array($_FILES['bf_file']['name'])) {
+      for ($i=0; $i<count($_FILES['bf_file']['name']); $i++) {
+        $upload[$i]['file']     = '';
+        $upload[$i]['source']   = '';
+        $upload[$i]['filesize'] = 0;
+        $upload[$i]['image']    = array();
+        $upload[$i]['image'][0] = 0;
+        $upload[$i]['image'][1] = 0;
+        $upload[$i]['image'][2] = 0;
+        $upload[$i]['fileurl'] = '';
+        $upload[$i]['thumburl'] = '';
+        $upload[$i]['storage'] = '';
+
+        // 삭제에 체크가 되어있다면 파일을 삭제합니다.
+        if (isset($_POST['bf_file_del'][$i]) && $_POST['bf_file_del'][$i]) {
+          $upload[$i]['del_check'] = true;
+
+          $row = $this->sql_fetch("SELECT * FROM {$g5['board_file_table']} WHERE bo_table = ? AND wr_id = ? AND bf_no = ?". [$bo_table, $wr_id, $i]);
+
+          $delete_file = run_replace('delete_file_path', G5_DATA_PATH.'/file/'.$bo_table.'/'.str_replace('../', '', $row['bf_file']), $row);
+          if( file_exists($delete_file) ){
+            @unlink($delete_file);
           }
-        } else {
-          if($file_count > $board['bo_upload_count']) {
-            $this->alert('첨부파일을 '.number_format($board['bo_upload_count']).'개 이하로 업로드 해주십시오.');
+          // 썸네일삭제
+          if(preg_match("/\.({$config['cf_image_extension']})$/i", $row['bf_file'])) {
+            $this->delete_board_thumbnail($bo_table, $row['bf_file']);
+          }
+        }
+        else {
+          $upload[$i]['del_check'] = false;
+        }
+
+        $tmp_file  = $_FILES['bf_file']['tmp_name'][$i];
+        $filesize  = $_FILES['bf_file']['size'][$i];
+        $filename  = $_FILES['bf_file']['name'][$i];
+        $filename  = $this->get_safe_filename($filename);
+
+        // 서버에 설정된 값보다 큰파일을 업로드 한다면
+        if ($filename) {
+          if ($_FILES['bf_file']['error'][$i] == 1) {
+            $file_upload_msg .= '\"'.$filename.'\" 파일의 용량이 서버에 설정('.$upload_max_filesize.')된 값보다 크므로 업로드 할 수 없습니다.\\n';
+            continue;
+          } else if ($_FILES['bf_file']['error'][$i] != 0) {
+            $file_upload_msg .= '\"'.$filename.'\" 파일이 정상적으로 업로드 되지 않았습니다.\\n';
+            continue;
           }
         }
 
-        // 디렉토리가 없다면 생성합니다. (퍼미션도 변경하구요.)
-        @mkdir(G5_DATA_PATH.'/file/'.$bo_table, G5_DIR_PERMISSION);
-        @chmod(G5_DATA_PATH.'/file/'.$bo_table, G5_DIR_PERMISSION);
+        if (is_uploaded_file($tmp_file)) {
+          // 관리자가 아니면서 설정한 업로드 사이즈보다 크다면 건너뜀
+          if (!$is_admin && $filesize > $board['bo_upload_size']) {
+            $file_upload_msg .= '\"'.$filename.'\" 파일의 용량('.number_format($filesize).' 바이트)이 게시판에 설정('.number_format($board['bo_upload_size']).' 바이트)된 값보다 크므로 업로드 하지 않습니다.\\n';
+            continue;
+          }
 
-        $chars_array = array_merge(range(0,9), range('a','z'), range('A','Z'));
+          //=================================================================\
+          // 090714
+          // 이미지나 플래시 파일에 악성코드를 심어 업로드 하는 경우를 방지
+          // 에러메세지는 출력하지 않는다.
+          //-----------------------------------------------------------------
+          $timg = @getimagesize($tmp_file);
+          // image type
+          if ( preg_match("/\.({$config['cf_image_extension']})$/i", $filename) ||
+            preg_match("/\.({$config['cf_flash_extension']})$/i", $filename) ) {
+            if ($timg['2'] < 1 || $timg['2'] > 16)
+              continue;
+          }
+          //=================================================================
 
-        // 가변 파일 업로드
-        $file_upload_msg = '';
-        $upload = array();
+          $upload[$i]['image'] = $timg;
 
-        if(isset($_FILES['bf_file']['name']) && is_array($_FILES['bf_file']['name'])) {
-          for ($i=0; $i<count($_FILES['bf_file']['name']); $i++) {
-            $upload[$i]['file']     = '';
-            $upload[$i]['source']   = '';
-            $upload[$i]['filesize'] = 0;
-            $upload[$i]['image']    = array();
-            $upload[$i]['image'][0] = 0;
-            $upload[$i]['image'][1] = 0;
-            $upload[$i]['image'][2] = 0;
-            $upload[$i]['fileurl'] = '';
-            $upload[$i]['thumburl'] = '';
-            $upload[$i]['storage'] = '';
-    
-            // 삭제에 체크가 되어있다면 파일을 삭제합니다.
-            if (isset($_POST['bf_file_del'][$i]) && $_POST['bf_file_del'][$i]) {
-              $upload[$i]['del_check'] = true;
-  
-              $row = $this->sql_fetch("SELECT * FROM {$g5['board_file_table']} WHERE bo_table = ? AND wr_id = ? AND bf_no = ?". [$bo_table, $wr_id, $i]);
-  
+          // 4.00.11 - 글답변에서 파일 업로드시 원글의 파일이 삭제되는 오류를 수정
+          if ($w == 'u') {
+            // 존재하는 파일이 있다면 삭제합니다.
+            $row = $this->sql_fetch("SELECT * FROM {$g5['board_file_table']} WHERE bo_table = '$bo_table' AND wr_id = '$wr_id' AND bf_no = '$i' ");
+            
+            if(isset($row['bf_file']) && $row['bf_file']){
               $delete_file = run_replace('delete_file_path', G5_DATA_PATH.'/file/'.$bo_table.'/'.str_replace('../', '', $row['bf_file']), $row);
               if( file_exists($delete_file) ){
-                @unlink($delete_file);
+                @unlink(G5_DATA_PATH.'/file/'.$bo_table.'/'.$row['bf_file']);
               }
-              // 썸네일삭제
+              // 이미지파일이면 썸네일삭제
               if(preg_match("/\.({$config['cf_image_extension']})$/i", $row['bf_file'])) {
                 $this->delete_board_thumbnail($bo_table, $row['bf_file']);
               }
             }
-            else {
-              $upload[$i]['del_check'] = false;
-            }
-    
-            $tmp_file  = $_FILES['bf_file']['tmp_name'][$i];
-            $filesize  = $_FILES['bf_file']['size'][$i];
-            $filename  = $_FILES['bf_file']['name'][$i];
-            $filename  = $this->get_safe_filename($filename);
-    
-            // 서버에 설정된 값보다 큰파일을 업로드 한다면
-            if ($filename) {
-              if ($_FILES['bf_file']['error'][$i] == 1) {
-                $file_upload_msg .= '\"'.$filename.'\" 파일의 용량이 서버에 설정('.$upload_max_filesize.')된 값보다 크므로 업로드 할 수 없습니다.\\n';
-                continue;
-              } else if ($_FILES['bf_file']['error'][$i] != 0) {
-                $file_upload_msg .= '\"'.$filename.'\" 파일이 정상적으로 업로드 되지 않았습니다.\\n';
-                continue;
-              }
-            }
-    
-            if (is_uploaded_file($tmp_file)) {
-              // 관리자가 아니면서 설정한 업로드 사이즈보다 크다면 건너뜀
-              if (!$is_admin && $filesize > $board['bo_upload_size']) {
-                $file_upload_msg .= '\"'.$filename.'\" 파일의 용량('.number_format($filesize).' 바이트)이 게시판에 설정('.number_format($board['bo_upload_size']).' 바이트)된 값보다 크므로 업로드 하지 않습니다.\\n';
-                continue;
-              }
-  
-              //=================================================================\
-              // 090714
-              // 이미지나 플래시 파일에 악성코드를 심어 업로드 하는 경우를 방지
-              // 에러메세지는 출력하지 않는다.
-              //-----------------------------------------------------------------
-              $timg = @getimagesize($tmp_file);
-              // image type
-              if ( preg_match("/\.({$config['cf_image_extension']})$/i", $filename) ||
-                preg_match("/\.({$config['cf_flash_extension']})$/i", $filename) ) {
-                if ($timg['2'] < 1 || $timg['2'] > 16)
-                  continue;
-              }
-              //=================================================================
-  
-              $upload[$i]['image'] = $timg;
-  
-              // 4.00.11 - 글답변에서 파일 업로드시 원글의 파일이 삭제되는 오류를 수정
-              if ($w == 'u') {
-                // 존재하는 파일이 있다면 삭제합니다.
-                $row = sql_fetch("SELECT * FROM {$g5['board_file_table']} WHERE bo_table = '$bo_table' AND wr_id = '$wr_id' AND bf_no = '$i' ");
-                $row = $this->sql_fetch("SELECT * FROM {$g5['board_file_table']} WHERE bo_table = ? AND wr_id = ? AND bf_no = ?", [$bo_table, $wr_id, $i]);
-                
-                if(isset($row['bf_file']) && $row['bf_file']){
-                  $delete_file = run_replace('delete_file_path', G5_DATA_PATH.'/file/'.$bo_table.'/'.str_replace('../', '', $row['bf_file']), $row);
-                  if( file_exists($delete_file) ){
-                    @unlink(G5_DATA_PATH.'/file/'.$bo_table.'/'.$row['bf_file']);
-                  }
-                  // 이미지파일이면 썸네일삭제
-                  if(preg_match("/\.({$config['cf_image_extension']})$/i", $row['bf_file'])) {
-                    $this->delete_board_thumbnail($bo_table, $row['bf_file']);
-                  }
-                }
-              }
-  
-              // 프로그램 원래 파일명
-              $upload[$i]['source'] = $filename;
-              $upload[$i]['filesize'] = $filesize;
-  
-              // 아래의 문자열이 들어간 파일은 -x 를 붙여서 웹경로를 알더라도 실행을 하지 못하도록 함
-              $filename = preg_replace("/\.(php|pht|phtm|htm|cgi|pl|exe|jsp|asp|inc)/i", "$0-x", $filename);
-  
-              shuffle($chars_array);
-              $shuffle = implode('', $chars_array);
-  
-              // 첨부파일 첨부시 첨부파일명에 공백이 포함되어 있으면 일부 PC에서 보이지 않거나 다운로드 되지 않는 현상이 있습니다. (길상여의 님 090925)
-              $upload[$i]['file'] = abs(ip2long($_SERVER['REMOTE_ADDR'])).'_'.substr($shuffle,0,8).'_'.$this->replace_filename($filename);
-  
-              $dest_file = G5_DATA_PATH.'/file/'.$bo_table.'/'.$upload[$i]['file'];
-  
-              // 업로드가 안된다면 에러메세지 출력하고 죽어버립니다.
-              $error_code = move_uploaded_file($tmp_file, $dest_file) or die($_FILES['bf_file']['error'][$i]);
-  
-              // 올라간 파일의 퍼미션을 변경합니다.
-              chmod($dest_file, G5_FILE_PERMISSION);
-  
-              $dest_file = run_replace('write_update_upload_file', $dest_file, $board, $wr_id, $w);
-              $upload[$i] = run_replace('write_update_upload_array', $upload[$i], $dest_file, $board, $wr_id, $w);
-            }
-          }   // end for
-        }   // end if
-
-
-
-        // 나중에 테이블에 저장하는 이유는 $wr_id 값을 저장해야 하기 때문입니다.
-        for ($i=0; $i<count($upload); $i++) {
-          $bf_content[$i] = isset($bf_content[$i]) ? $bf_content[$i] : '';
-          $bf_width = isset($upload[$i]['image'][0]) ? (int) $upload[$i]['image'][0] : 0;
-          $bf_height = isset($upload[$i]['image'][1]) ? (int) $upload[$i]['image'][1] : 0;
-          $bf_type = isset($upload[$i]['image'][2]) ? (int) $upload[$i]['image'][2] : 0;
-
-          $row = $this->sql_fetch("SELECT count(*) as cnt FROM {$g5['board_file_table']} WHERE bo_table = '{$bo_table}' AND wr_id = '{$wr_id}' AND bf_no = '{$i}' ");
-          $row = $this->sql_fetch("SELECT count(*) as cnt FROM {$g5['board_file_table']} WHERE bo_table = '{$bo_table}' AND wr_id = '{$wr_id}' AND bf_no = '{$i}'", [$bo_table, $wr_id, $i]);
-          if ($row['cnt']) {
-            // 삭제에 체크가 있거나 파일이 있다면 업데이트를 합니다.
-            // 그렇지 않다면 내용만 업데이트 합니다.
-            if ($upload[$i]['del_check'] || $upload[$i]['file']) {
-              $sql = "UPDATE {$g5['board_file_table']}
-                        SET bf_source = ?,
-                            bf_file = ?,
-                            bf_content = ?,
-                            bf_fileurl = ?,
-                            bf_thumburl = ?,
-                            bf_storage = ?,
-                            bf_filesize = ?,
-                            bf_width = ?,
-                            bf_height = ?,
-                            bf_type = ?,
-                            bf_datetime = ?
-                        WHERE bo_table = ?,
-                          AND wr_id = ?,
-                          AND bf_no = ?";
-              $this->sql_query($sql, [$upload[$i]['source'], $upload[$i]['file'], $bf_content[$i], $upload[$i]['fileurl'], $upload[$i]['thumburl'], $upload[$i]['storage'], (int)$upload[$i]['filesize'], $bf_width, $bf_height, $bf_type, G5_TIME_YMDHIS, $bo_table, $wr_id, $i]);
-            } else {
-              $sql = "UPDATE {$g5['board_file_table']}
-                      SET bf_content = '{$bf_content[$i]}'
-                      WHERE bo_table = '{$bo_table}'
-                            AND wr_id = '{$wr_id}'
-                            AND bf_no = '{$i}' ";
-              $this->sql_query($sql, [$bf_content[$i], $bo_table, $wr_id, $i]);
-            }
-          } else {
-            $sql = "INSERT INTO {$g5['board_file_table']}
-                    SET bo_table = ?,
-                        wr_id = ?,
-                        bf_no = ?,
-                        bf_source = ?,
-                        bf_file = ?,
-                        bf_content = ?,
-                        bf_fileurl = ?,
-                        bf_thumburl = ?,
-                        bf_storage = ?,
-                        bf_download = ?,
-                        bf_filesize = ?,
-                        bf_width = ?,
-                        bf_height = ?,
-                        bf_type = ?,
-                        bf_datetime = ?";
-            $this->sql_query($sql, [$bo_table, $wr_id, $i, $upload[$i]['source'], $upload[$i]['file'], $bf_content[$i], $upload[$i]['fileurl'], $upload[$i]['thumburl'], $upload[$i]['storage'], 0, (int)$upload[$i]['filesize'], $bf_width, $bf_height, $bf_type, G5_TIME_YMDHIS]);
-
-            run_event('write_update_file_insert', $bo_table, $wr_id, $upload[$i], $w);
-          }
-        }
-
-        // 업로드된 파일 내용에서 가장 큰 번호를 얻어 거꾸로 확인해 가면서
-        // 파일 정보가 없다면 테이블의 내용을 삭제합니다.
-        $row = $this->sql_fetch("SELECT max(bf_no) as max_bf_no FROM {$g5['board_file_table']} WHERE bo_table = ? AND wr_id = ?", [$bo_table, $wr_id]);
-        for ($i=(int)$row['max_bf_no']; $i>=0; $i--) {
-          $row2 = $this->sql_fetch("SELECT bf_file FROM {$g5['board_file_table']} WHERE bo_table = ? AND wr_id = ? AND bf_no = ?",[$bo_table, $wr_id, $i]);
-
-          // 정보가 있다면 빠집니다.
-          if ($row2['bf_file']) break;
-
-          // 그렇지 않다면 정보를 삭제합니다.
-          $this->sql_query("DELETE FROM {$g5['board_file_table']} WHERE bo_table = ? AND wr_id = ? AND bf_no = ?",[$bo_table, $wr_id, $i]);
-        }
-
-        // 파일의 개수를 게시물에 업데이트 한다.
-        $row = $this->sql_fetch("SELECT count(*) as cnt FROM {$g5['board_file_table']} WHERE bo_table = ? AND wr_id = ?", [$bo_table, $wr_id]);
-        $this->sql_query("UPDATE {$write_table} SET wr_file = ? WHERE wr_id = ?", [$row['cnt'], $wr_id]);
-
-        // 자동저장된 레코드를 삭제한다.
-        $this->sql_query("DELETE from {$g5['autosave_table']} WHERE as_uid = ?", [$uid]);
-        //------------------------------------------------------------------------------
-
-        // 비밀글이라면 세션에 비밀글의 아이디를 저장한다. 자신의 글은 다시 비밀번호를 묻지 않기 위함
-        if ($secret)
-          $this->set_session("ss_secret_{$bo_table}_{$wr_num}", TRUE);
-
-
-        // 메일발송 사용 (수정글은 발송하지 않음)
-        if (!($w == 'u' || $w == 'cu') && $config['cf_email_use'] && $board['bo_use_email']) {
-
-          // 관리자의 정보를 얻고
-          $board = $this->get_board_db($bo_table, true);
-          $this->$group = get_group($gr_id, true);
-          $super_admin = $this->get_admin('super');
-          $group_admin = $this->get_admin('group');
-          $board_admin = $this->get_admin('board');
-
-          $wr_subject = $this->get_text(stripslashes($wr_subject));
-
-          $tmp_html = 0;
-          if (strstr($html, 'html1'))
-            $tmp_html = 1;
-          else if (strstr($html, 'html2'))
-            $tmp_html = 2;
-
-          $wr_content = $this->conv_content($this->conv_unescape_nl(stripslashes($wr_content)), $tmp_html);
-
-          $warr = array( ''=>'입력', 'u'=>'수정', 'r'=>'답변', 'c'=>'코멘트', 'cu'=>'코멘트 수정' );
-          $str = $warr[$w];
-
-          $subject = '['.$config['cf_title'].'] '.$board['bo_subject'].' 게시판에 '.$str.'글이 올라왔습니다.';
-
-          $link_url = $this->get_pretty_url($bo_table, $wr_id, $qstr);
-
-          ob_start();
-          include_once ('./write_update_mail.php');
-          $content = ob_get_contents();
-          ob_end_clean();
-
-          $array_email = array();
-          // 게시판관리자에게 보내는 메일
-          if ($config['cf_email_wr_board_admin']) $array_email[] = $board_admin['mb_email'];
-          // 게시판그룹관리자에게 보내는 메일
-          if ($config['cf_email_wr_group_admin']) $array_email[] = $group_admin['mb_email'];
-          // 최고관리자에게 보내는 메일
-          if ($config['cf_email_wr_super_admin']) $array_email[] = $super_admin['mb_email'];
-
-          // 원글게시자에게 보내는 메일
-          if ($config['cf_email_wr_write']) {
-            if($w == '')
-              $wr['wr_email'] = $wr_email;
-
-            $array_email[] = $wr['wr_email'];
           }
 
-          // 옵션에 메일받기가 체크되어 있고, 게시자의 메일이 있다면
-          if (strstr($wr['wr_option'], 'mail') && $wr['wr_email'])
-            $array_email[] = $wr['wr_email'];
+          // 프로그램 원래 파일명
+          $upload[$i]['source'] = $filename;
+          $upload[$i]['filesize'] = $filesize;
 
-          // 중복된 메일 주소는 제거
-          $unique_email = array_unique($array_email);
-          $unique_email = run_replace('write_update_mail_list', array_values($unique_email), $board, $wr_id);
+          // 아래의 문자열이 들어간 파일은 -x 를 붙여서 웹경로를 알더라도 실행을 하지 못하도록 함
+          $filename = preg_replace("/\.(php|pht|phtm|htm|cgi|pl|exe|jsp|asp|inc)/i", "$0-x", $filename);
 
-          for ($i=0; $i<count($unique_email); $i++) {
-            $this->mailer($wr_name, $wr_email, $unique_email[$i], $subject, $content, 1);
-          }
+          shuffle($chars_array);
+          $shuffle = implode('', $chars_array);
+
+          // 첨부파일 첨부시 첨부파일명에 공백이 포함되어 있으면 일부 PC에서 보이지 않거나 다운로드 되지 않는 현상이 있습니다. (길상여의 님 090925)
+          $upload[$i]['file'] = abs(ip2long($_SERVER['REMOTE_ADDR'])).'_'.substr($shuffle,0,8).'_'.$this->replace_filename($filename);
+
+          $dest_file = G5_DATA_PATH.'/file/'.$bo_table.'/'.$upload[$i]['file'];
+
+          // 업로드가 안된다면 에러메세지 출력하고 죽어버립니다.
+          $error_code = move_uploaded_file($tmp_file, $dest_file) or die($_FILES['bf_file']['error'][$i]);
+
+          // 올라간 파일의 퍼미션을 변경합니다.
+          chmod($dest_file, G5_FILE_PERMISSION);
+
+          $dest_file = run_replace('write_update_upload_file', $dest_file, $board, $wr_id, $w);
+          $upload[$i] = run_replace('write_update_upload_array', $upload[$i], $dest_file, $board, $wr_id, $w);
         }
+      }   // end for
+    }   // end if
 
-        delete_cache_latest($bo_table);
 
-        $redirect_url = run_replace('write_update_move_url', $this->short_url_clean(G5_HTTP_BBS_URL.'/board.php?bo_table='.$bo_table.'&amp;wr_id='.$wr_id.$qstr), $board, $wr_id, $w, $qstr, $file_upload_msg);
 
-        run_event('write_update_after', $board, $wr_id, $w, $qstr, $redirect_url);
+    // 나중에 테이블에 저장하는 이유는 $wr_id 값을 저장해야 하기 때문입니다.
+    for ($i=0; $i<count($upload); $i++) {
+      $bf_content[$i] = isset($bf_content[$i]) ? $bf_content[$i] : '';
+      $bf_width = isset($upload[$i]['image'][0]) ? (int) $upload[$i]['image'][0] : 0;
+      $bf_height = isset($upload[$i]['image'][1]) ? (int) $upload[$i]['image'][1] : 0;
+      $bf_type = isset($upload[$i]['image'][2]) ? (int) $upload[$i]['image'][2] : 0;
+
+      $row = $this->sql_fetch(" select count(*) as cnt from {$g5['board_file_table']} where bo_table = '{$bo_table}' and wr_id = '{$wr_id}' and bf_no = '{$i}' ");
+      if ($row['cnt']) {
+        // 삭제에 체크가 있거나 파일이 있다면 업데이트를 합니다.
+        // 그렇지 않다면 내용만 업데이트 합니다.
+        if ($upload[$i]['del_check'] || $upload[$i]['file']) {
+          $sql = " update {$g5['board_file_table']}
+                  set bf_source = '{$upload[$i]['source']}',
+                        bf_file = '{$upload[$i]['file']}',
+                        bf_content = '{$bf_content[$i]}',
+                        bf_fileurl = '{$upload[$i]['fileurl']}',
+                        bf_thumburl = '{$upload[$i]['thumburl']}',
+                        bf_storage = '{$upload[$i]['storage']}',
+                        bf_filesize = '".(int)$upload[$i]['filesize']."',
+                        bf_width = '".$bf_width."',
+                        bf_height = '".$bf_height."',
+                        bf_type = '".$bf_type."',
+                        bf_datetime = '".G5_TIME_YMDHIS."'
+                  where bo_table = '{$bo_table}'
+                        and wr_id = '{$wr_id}'
+                        and bf_no = '{$i}' ";
+          $this->sql_query($sql);
+        } else {
+          $sql = " update {$g5['board_file_table']}
+                    set bf_content = '{$bf_content[$i]}'
+                    where bo_table = '{$bo_table}'
+                              and wr_id = '{$wr_id}'
+                              and bf_no = '{$i}' ";
+          $this->sql_query($sql);
+        }
+      } else {
+        $sql = " insert into {$g5['board_file_table']}
+                set bo_table = '{$bo_table}',
+                    wr_id = '{$wr_id}',
+                    bf_no = '{$i}',
+                    bf_source = '{$upload[$i]['source']}',
+                    bf_file = '{$upload[$i]['file']}',
+                    bf_content = '{$bf_content[$i]}',
+                    bf_fileurl = '{$upload[$i]['fileurl']}',
+                    bf_thumburl = '{$upload[$i]['thumburl']}',
+                    bf_storage = '{$upload[$i]['storage']}',
+                    bf_download = 0,
+                    bf_filesize = '".(int)$upload[$i]['filesize']."',
+                    bf_width = '".$bf_width."',
+                    bf_height = '".$bf_height."',
+                    bf_type = '".$bf_type."',
+                    bf_datetime = '".G5_TIME_YMDHIS."' ";
+          $this->sql_query($sql);
+
+          run_event('write_update_file_insert', $bo_table, $wr_id, $upload[$i], $w);;
+      }
     }
+
+    // 업로드된 파일 내용에서 가장 큰 번호를 얻어 거꾸로 확인해 가면서
+    // 파일 정보가 없다면 테이블의 내용을 삭제합니다.
+    $row = $this->sql_fetch(" select max(bf_no) as max_bf_no from {$g5['board_file_table']} where bo_table = '{$bo_table}' and wr_id = '{$wr_id}' ");
+    for ($i=(int)$row['max_bf_no']; $i>=0; $i--) {
+      $row2 = $this->sql_fetch(" select bf_file from {$g5['board_file_table']} where bo_table = '{$bo_table}' and wr_id = '{$wr_id}' and bf_no = '{$i}' ");
+
+      // 정보가 있다면 빠집니다.
+      if ($row2['bf_file']) break;
+
+      // 그렇지 않다면 정보를 삭제합니다.
+      $this->sql_query(" delete from {$g5['board_file_table']} where bo_table = '{$bo_table}' and wr_id = '{$wr_id}' and bf_no = '{$i}' ");
+    }
+
+    // 파일의 개수를 게시물에 업데이트 한다.
+    $row = $this->sql_fetch(" select count(*) as cnt from {$g5['board_file_table']} where bo_table = '{$bo_table}' and wr_id = '{$wr_id}' ");
+    $this->sql_query(" update {$write_table} set wr_file = '{$row['cnt']}' where wr_id = '{$wr_id}' ");
+
+    // 자동저장된 레코드를 삭제한다.
+    $this->sql_query(" delete from {$g5['autosave_table']} where as_uid = '{$uid}' ");
+    //------------------------------------------------------------------------------
+
+    // 비밀글이라면 세션에 비밀글의 아이디를 저장한다. 자신의 글은 다시 비밀번호를 묻지 않기 위함
+    if ($secret)
+      $this->set_session("ss_secret_{$bo_table}_{$wr_num}", TRUE);
+
+
+    // 메일발송 사용 (수정글은 발송하지 않음)
+    if (!($w == 'u' || $w == 'cu') && $config['cf_email_use'] && $board['bo_use_email']) {
+
+      // 관리자의 정보를 얻고
+      $this->$group = $this->get_group($gr_id, true);
+      $super_admin = $this->get_admin('super');
+      $group_admin = $this->get_admin('group');
+      $board_admin = $this->get_admin('board');
+
+      $wr_subject = $this->get_text(stripslashes($wr_subject));
+
+      $tmp_html = 0;
+      if (strstr($html, 'html1'))
+        $tmp_html = 1;
+      else if (strstr($html, 'html2'))
+        $tmp_html = 2;
+
+      $wr_content = $this->conv_content($this->conv_unescape_nl(stripslashes($wr_content)), $tmp_html);
+
+      $warr = array( ''=>'입력', 'u'=>'수정', 'r'=>'답변', 'c'=>'코멘트', 'cu'=>'코멘트 수정' );
+      $str = $warr[$w];
+
+      $subject = '['.$config['cf_title'].'] '.$board['bo_subject'].' 게시판에 '.$str.'글이 올라왔습니다.';
+
+      $link_url = $this->get_pretty_url($bo_table, $wr_id, $qstr);
+
+      ob_start();
+      include_once ('./write_update_mail.php');
+      $content = ob_get_contents();
+      ob_end_clean();
+
+      $array_email = array();
+      // 게시판관리자에게 보내는 메일
+      if ($config['cf_email_wr_board_admin']) $array_email[] = $board_admin['mb_email'];
+      // 게시판그룹관리자에게 보내는 메일
+      if ($config['cf_email_wr_group_admin']) $array_email[] = $group_admin['mb_email'];
+      // 최고관리자에게 보내는 메일
+      if ($config['cf_email_wr_super_admin']) $array_email[] = $super_admin['mb_email'];
+
+      // 원글게시자에게 보내는 메일
+      if ($config['cf_email_wr_write']) {
+        if($w == '')
+          $wr['wr_email'] = $wr_email;
+
+        $array_email[] = $wr['wr_email'];
+      }
+
+      // 옵션에 메일받기가 체크되어 있고, 게시자의 메일이 있다면
+      if (strstr($wr['wr_option'], 'mail') && $wr['wr_email'])
+        $array_email[] = $wr['wr_email'];
+
+      // 중복된 메일 주소는 제거
+      $unique_email = array_unique($array_email);
+      $unique_email = run_replace('write_update_mail_list', array_values($unique_email), $board, $wr_id);
+
+      for ($i=0; $i<count($unique_email); $i++) {
+        $this->mailer($wr_name, $wr_email, $unique_email[$i], $subject, $content, 1);
+      }
+    }
+
+
+    $this->delete_cache_latest($bo_table);
+    $redirect_url = run_replace('write_update_move_url', $this->short_url_clean(G5_HTTP_BBS_URL.'/board.php?bo_table='.$bo_table.'&wr_id='.$wr_id.$qstr), $board, $wr_id, $w, $qstr, $file_upload_msg);
+    run_event('write_update_after', $board, $wr_id, $w, $qstr, $redirect_url);
+    $this->alert('success', $redirect_url);
   }
 }
