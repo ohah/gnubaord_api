@@ -87,23 +87,32 @@ trait get_datalib {
 
     $where = $use_mobile ? "me_mobile_use = '1'" : "me_use = '1'";
     if( !($cache[$key] = run_replace('get_menu_db', array(), $use_mobile)) ) {
-      $res = $this->sql_query("SELECT * FROM {$g5['menu_table']} WHERE {$where} AND length(me_code) = '2' ORDER By me_order, me_id");      
-      for($i=0;$i<count($res);$i++) {
-        $res[$i]['ori_me_link'] = $res[$i]['me_link'];
-        $res[$i]['me_link'] = $this->short_url_clean($res[$i]['me_link']);
-        $res[$i]['sub'] = isset($res[$i]['sub']) ? $res[$i]['sub'] : array();
-        $cache[$key][$i] = $res;
-
-        $row2 = $this->sql_query("SELECT * FROM {$g5['menu_table']} WHERE length(me_code) = ? AND substring(me_code, 1,2) = ? ORDER By me_order, me_id", ['4', $res[$i]['me_code']]);
+      $sql = " select *
+                from {$g5['menu_table']}
+                where $where
+                and length(me_code) = '2'
+                order by me_order, me_id ";
+      $row = $this->sql_query($sql);      
+      for($i=0;$i<count($row);$i++) {
+        $row[$i]['ori_me_link'] = $row[$i]['me_link'];
+        $row[$i]['me_link'] = $this->short_url_clean($row[$i]['me_link']);
+        $row[$i]['sub'] = isset($row[$i]['sub']) ? $row[$i]['sub'] : array();
+        $cache[$key][$i] = $row[$i];
+        $sql2 = " select *
+        from {$g5['menu_table']}
+        where $where
+        and length(me_code) = '4'
+        and substring(me_code, 1, 2) = '{$row[$i]['me_code']}'
+        order by me_order, me_id ";
+        $row2 = $this->sql_query($sql2);
         for($k=0;$k<count($row2);$k++) {
-          $row2[$i]['ori_me_link'] = $row2[$i]['me_link'];
-          $row2[$i]['me_link'] = $this->short_url_clean($row2[$i]['me_link']);
-          $res[$i]['sub'][$k] = $row2[$i];
-          $cache[$key][$i]['sub'][$k] = $row2[$i];
+          $row2[$k]['ori_me_link'] = $row2[$k]['me_link'];
+          $row2[$k]['me_link'] = $this->short_url_clean($row2[$k]['me_link']);
+          $cache[$key][$i]['sub'][$k] = $row2[$k];
         }
       }
     }
-    return $cache[$key][0];
+    return $cache[$key];
   }
 
   // 게시판 테이블에서 하나의 행을 읽음
