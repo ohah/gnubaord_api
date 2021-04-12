@@ -9,6 +9,7 @@ trait search {
     $sod = $this->qstr['sod'];
     $spt = $this->qstr['spt'];
     $page = $this->qstr['page'];
+    $onetable = $this->qstr['onetable'];    
     $member = $this->member;
     $config = $this->config;
     $is_admin = $this->is_admin;
@@ -188,10 +189,10 @@ trait search {
           // 검색어까지 링크되면 게시판 부하가 일어남
           $list[$idx][$i] = $row;
           $list[$idx][$i]['href'] = $this->get_pretty_url($search_table[$idx], $row['wr_parent']);
-
+          
           if ($row['wr_is_comment']) {
-            $sql2 = "select wr_subject, wr_option from {$tmp_write_table} where wr_id = ?";
-            $row2 = $this->sql_fetch($sql2, [$row['wr_parent']]);
+            $sql2 = "select wr_subject, wr_option from {$tmp_write_table} where wr_id = '{$row['wr_parent']}'";
+            $row2 = $this->sql_fetch($sql2);
             //$row['wr_subject'] = $row2['wr_subject'];
             $row['wr_subject'] = $this->get_text($row2['wr_subject']);
           }
@@ -221,13 +222,15 @@ trait search {
           $list[$idx][$i]['subject'] = $subject;
           $list[$idx][$i]['content'] = $content;
           $list[$idx][$i]['name'] = $this->get_sideview($row['mb_id'], $this->get_text($this->cut_str($row['wr_name'], $config['cf_cut_name'])), $row['wr_email'], $row['wr_homepage']);
-
+          unset($list[$idx][$i]['wr_ip']);
+          unset($list[$idx][$i]['wr_password']);
           $k++;
-          if ($k >= $rows)
+          if ($k >= $rows) {
+            $this->unset_data($list[$idx]);
             break;
+          }
         }
         //$this->sql_free_result($result);
-
         if ($k >= $rows)
           break;
 
@@ -258,7 +261,10 @@ trait search {
     $result['str_board_list'] = $str_board_list;
     $result['group_select'] = $group_select;
     $result['write_pages'] = $write_pages;
-    $result['list'] = $this->unset_data($list);
+    $result['list'] = $list;
+    $result['page_rows'] = $rows;
+    $result['page'] = $page ? $page : 1;
+    $result['total_count'] = $total_count;
     return $this->data_encode($result);
   }
 }

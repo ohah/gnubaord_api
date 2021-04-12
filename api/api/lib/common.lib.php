@@ -51,6 +51,9 @@ require API_PATH.'/bbs/scrap.php';
 require API_PATH.'/bbs/list.php';
 require API_PATH.'/bbs/profile.php';
 require API_PATH.'/bbs/delete.php';
+require API_PATH.'/bbs/move.php';
+require API_PATH.'/bbs/memo.php';
+require API_PATH.'/bbs/point.php';
 require API_PATH.'/bbs/db_table.optimize.php';
 require API_PATH.'/plugin/kcaptcha/kcaptcha.lib.php';
 require API_PATH.'/lib/latest.lib.php';
@@ -60,6 +63,7 @@ require API_PATH.'/lib/uri.lib.php';
 require API_PATH.'/lib/get_data.lib.php';
 require API_PATH.'/lib/naver_syndi.lib.php';
 require API_PATH.'/lib/mailer.lib.php';
+require API_PATH.'/lib/thumbnail.lib.php';
 
 /** 구글 캡챠 */
 require API_PATH.'/plugin/recaptcha/recaptcha.class.php';
@@ -69,6 +73,7 @@ require API_PATH.'/plugin/recaptcha_inv/recaptcha.user.lib.php';
 /** 구글 캡챠 */
 use Firebase\JWT\JWT;
 class Commonlib {
+  use thumbnaillib;
   use board;
   use email_certify;
   use good;
@@ -98,6 +103,9 @@ class Commonlib {
   use naver_syndilib;
   use get_datalib;
   use mailerlib;
+  use move;
+  use point;
+  use memo;
   public $cookiename = 'gnu_jwt';
   public function __construct() {
   }
@@ -114,8 +122,10 @@ class Commonlib {
         alert("제대로 된 접근이 아닌것 같습니다.", $url);
     */
   }
-
-  
+  public function escape_trim($field) {
+    $str = call_user_func(G5_ESCAPE_FUNCTION, $field);
+    return $str;
+  }
   // unescape nl 얻기
   public function conv_unescape_nl($str){
     $search = array('\\r', '\r', '\\n', '\n');
@@ -451,20 +461,22 @@ class Commonlib {
   // 게시글에 첨부된 파일을 얻는다. (배열로 반환)
   public function get_file($bo_table, $wr_id) {
     global $g5;
-    $file['count'] = 0;
+    $file = array();
+    // $file['count'] = 0;
     $sql = "SELECT * FROM {$g5['board_file_table']} WHERE bo_table = ? AND wr_id = ? ORDER BY bf_no";
     $result = $this->sql_query($sql, [$bo_table, $wr_id]);
     for($i=0;$i<count($result);$i++) {
       $row = $result[$i];
       $no = $row['bf_no'];
       $bf_content = $row['bf_content'] ? $this->html_purifier($row['bf_content']) : '';
+      $file[$no]['bf_no'] = $row['bf_no'];
       $file[$no]['href'] = G5_BBS_URL."/download.php?bo_table=$bo_table&wr_id=$wr_id&no=$no";
       $file[$no]['download'] = $row['bf_download'];
       // 4.00.11 - 파일 path 추가
       $file[$no]['path'] = G5_DATA_URL.'/file/'.$bo_table;
       $file[$no]['size'] = $this->get_filesize($row['bf_filesize']);
       $file[$no]['datetime'] = $row['bf_datetime'];
-      $file[$no]['source'] = addslashes($row['bf_source']);
+      $file[$no]['name'] = addslashes($row['bf_source']);
       $file[$no]['bf_content'] = $bf_content;
       $file[$no]['content'] = $this->get_text($bf_content);
       //$file[$no]['view'] = view_file_link($row['bf_file'], $file[$no]['content']);
@@ -477,7 +489,7 @@ class Commonlib {
       $file[$no]['bf_fileurl'] = $row['bf_fileurl'];
       $file[$no]['bf_thumburl'] = $row['bf_thumburl'];
       $file[$no]['bf_storage'] = $row['bf_storage'];
-      $file['count']++;
+      // $file['count']++;
     }
     return $file;
   }
@@ -650,9 +662,8 @@ class Commonlib {
   }
 
   // 회원 레이어
-  public function get_sideview($mb_id, $name='', $email='', $homepage='') {
+  public function get_sideview($mb_id, $name='', $email='', $homepage='', $bo_table = '') {
     global $g5;
-    global $bo_table;
     $config = $this->config;
     $is_admin = $this->$is_admin;
     $member = $this->member;
@@ -665,12 +676,15 @@ class Commonlib {
     $email    = $this->get_text($email);
     $homepage = $this->get_text($homepage);
 
-    $tmp_name = "";
+    $str = array();
     $en_mb_id = $mb_id;
-
+    $result = array();
+    $result['mb_nick'] = $name;    
     if ($mb_id) {
+      $result['mb_id'] = $mb_id;
       //$tmp_name = "<a href=\"".G5_BBS_URL."/profile.php?mb_id=".$mb_id."\" class=\"sv_member\" title=\"$name 자기소개\" rel="nofollow" target=\"_blank\" onclick=\"return false;\">$name</a>";
-      $tmp_name = '<a href="'.G5_BBS_URL.'/profile.php?mb_id='.$mb_id.'" class="sv_member" title="'.$name.' 자기소개" target="_blank" rel="nofollow" onclick="return false;">';
+      $str['intro']['title'] = '자기소개';
+      $str['intro']['url'] = G5_BBS_URL.'/profile?mb_id='.$mb_id;
 
       if ($config['cf_use_member_icon']) {
         $mb_dir = substr($mb_id,0,2);
@@ -680,70 +694,66 @@ class Commonlib {
           $icon_filemtile = (defined('G5_USE_MEMBER_IMAGE_FILETIME') && G5_USE_MEMBER_IMAGE_FILETIME) ? '?'.filemtime($icon_file) : '';
           $width = $config['cf_member_icon_width'];
           $height = $config['cf_member_icon_height'];
-          $icon_file_url = G5_DATA_URL.'/member/'.$mb_dir.'/'.$this->get_mb_icon_name($mb_id).'.gif'.$icon_filemtile;
-          $tmp_name .= '<span class="profile_img"><img src="'.$icon_file_url.'" width="'.$width.'" height="'.$height.'" alt=""></span>';
-
-          if ($config['cf_use_member_icon'] == 2) // 회원아이콘+이름
-            $tmp_name = $tmp_name.' '.$name;
+          $str['intro']['icon_url'] = G5_DATA_URL.'/member/'.$mb_dir.'/'.$this->get_mb_icon_name($mb_id).'.gif'.$icon_filemtile;
         } else {
           if( defined('G5_THEME_NO_PROFILE_IMG') ){
-            $tmp_name .= G5_THEME_NO_PROFILE_IMG;
+            $str['intro']['icon_url'] = G5_THEME_NO_PROFILE_IMG;
           } else if( defined('G5_NO_PROFILE_IMG') ){
-            $tmp_name .= G5_NO_PROFILE_IMG;
+            $str['intro']['icon_url'] = G5_NO_PROFILE_IMG;
           }
-          if ($config['cf_use_member_icon'] == 2) // 회원아이콘+이름
-            $tmp_name = $tmp_name.' '.$name;
+          if ($config['cf_use_member_icon'] == 2) {}// 회원아이콘+이름
+            
         }
-      } else {
-        $tmp_name = $tmp_name.' '.$name;
-      }
-      $tmp_name .= '</a>';
+      } 
 
-      $title_mb_id = '['.$mb_id.']';
     } else {
       if(!$bo_table)
         return $name;
-
-      $tmp_name = '<a href="'.$this->get_pretty_url($bo_table, '', 'sca='.$sca.'&sfl=wr_name,1&stx='.$name).'" title="'.$name.' 이름으로 검색" class="sv_guest" rel="nofollow" onclick="return false;">'.$name.'</a>';
-      $title_mb_id = '[비회원]';
+      // $str['intro']['title'] = '이름으로 검색';
+      // $str['intro']['url'] = $this->get_pretty_url($bo_table, '', 'sca='.$sca.'&sfl=wr_name,1&stx='.$name);
     }
 
-    $str = "<span class=\"sv_wrap\">\n";
-    $str .= $tmp_name."\n";
-
-    $str2 = "<span class=\"sv\">\n";
-    if($mb_id)
-      $str2 .= "<a href=\"".G5_BBS_URL."/memo_form.php?me_recv_mb_id=".$mb_id."\" onclick=\"win_memo(this.href); return false;\">쪽지보내기</a>\n";
-    if($email)
-      $str2 .= "<a href=\"".G5_BBS_URL."/formmail.php?mb_id=".$mb_id."&amp;name=".urlencode($name)."&amp;email=".$email."\" onclick=\"win_email(this.href); return false;\">메일보내기</a>\n";
-    if($homepage)
-      $str2 .= "<a href=\"".$homepage."\" target=\"_blank\">홈페이지</a>\n";
-    if($mb_id)
-      $str2 .= "<a href=\"".G5_BBS_URL."/profile.php?mb_id=".$mb_id."\" onclick=\"win_profile(this.href); return false;\">자기소개</a>\n";
+    if($mb_id) {
+      $str['memo']['title'] = '쪽지보내기';
+      $str['memo']['url'] = G5_BBS_URL."/memo_form?me_recv_mb_id=".$mb_id;
+    }
+    if($email) {
+      $str['email']['title'] = '이메일';
+      $str['email']['url'] = G5_BBS_URL."/formmail?mb_id=".$mb_id."&amp;name=".urlencode($name)."&amp;email=".$email;
+    }
+    if($homepage) {
+      $str['homepage']['title'] = '홈페이지';
+      $str['homepage']['url'] = $homepage;
+    }
+    if($mb_id) {
+      $str['profile']['title'] = '자기소개';
+      $str['profile']['url'] = G5_BBS_URL."/profile?mb_id=".$mb_id;
+    }
     if($bo_table) {
       if($mb_id) {
-        $str2 .= "<a href=\"".$this->get_pretty_url($bo_table, '', "sca=".$sca."&amp;sfl=mb_id,1&amp;stx=".$en_mb_id)."\">아이디로 검색</a>\n";
+        $str['search_mb_id']['title'] = '아이디로 검색';
+        $str['search_mb_id']['url'] = $this->get_pretty_url($bo_table, '', "sca=".$sca."&amp;sfl=mb_id,1&amp;stx=".$en_mb_id);
       } else {
-        $str2 .= "<a href=\"".$this->get_pretty_url($bo_table, '', "sca=".$sca."&amp;sfl=wr_name,1&amp;stx=".$name)."\">이름으로 검색</a>\n";
+        $str['search_name']['title'] = '이름으로 검색';
+        $str['search_name']['url'] = $this->get_pretty_url($bo_table, '', "sca=".$sca."&amp;sfl=wr_name,1&amp;stx=".$name);
       }
     }
-    if($mb_id)
-      $str2 .= "<a href=\"".G5_BBS_URL."/new.php?mb_id=".$mb_id."\" class=\"link_new_page\" onclick=\"check_goto_new(this.href, event);\">전체게시물</a>\n";
-    if($is_admin == "super" && $mb_id) {
-      $str2 .= "<a href=\"".G5_ADMIN_URL."/member_form.php?w=u&amp;mb_id=".$mb_id."\" target=\"_blank\">회원정보변경</a>\n";
-      $str2 .= "<a href=\"".G5_ADMIN_URL."/point_list.php?sfl=mb_id&amp;stx=".$mb_id."\" target=\"_blank\">포인트내역</a>\n";
+    if($mb_id) {
+      $str['new']['title'] = '전체게시물';
+      $str['new']['url'] = G5_BBS_URL."/new?mb_id=".$mb_id;
     }
-    $str2 .= "</span>\n";
-    $str .= $str2;
-    $str .= "\n<noscript class=\"sv_nojs\">".$str2."</noscript>";
-
-    $str .= "</span>";
-
-    return $str;
+    if($is_admin == "super" && $mb_id) {
+      $str['mb_info']['title'] = '회원정보변경';
+      $str['mb_info']['url'] = G5_ADMIN_URL."/member_form?w=u&amp;mb_id=".$mb_id;
+      $str['mb_point']['title'] = '포인트내역';
+      $str['mb_point']['url'] = G5_ADMIN_URL."/point_list?sfl=mb_id&amp;stx=".$mb_id;
+    }
+    $result['list'] = $str;
+    return $result;
   }
 
   // set_search_font(), get_search_font() 함수를 search_font() 함수로 대체
-  function search_font($stx, $str) {
+  public function search_font($stx, $str) {
     $config = $this->config;
 
     // 문자앞에 \ 를 붙입니다.
@@ -848,6 +858,7 @@ class Commonlib {
     global $g5, $g5_object;
     $config = $this->config;
     $page = $this->page ? $this->page : 1;
+    // $board = $this->get_board_db($bo_table);
     $qstr = '';
     foreach ($this->qstr as $key => $value) {
       if($value) $qstr .= $key.'='.$value;
@@ -875,13 +886,13 @@ class Commonlib {
 
     // 목록에서 내용 미리보기 사용한 게시판만 내용을 변환함 (속도 향상) : kkal3(커피)님께서 알려주셨습니다.
     if ($board['bo_use_list_content']) {
-    $html = 0;
-    if (strstr($list['wr_option'], 'html1'))
-      $html = 1;
-    else if (strstr($list['wr_option'], 'html2'))
-      $html = 2;
+      $html = 0;
+      if (strstr($list['wr_option'], 'html1'))
+        $html = 1;
+      else if (strstr($list['wr_option'], 'html2'))
+        $html = 2;
 
-    $list['content'] = $this->conv_content($list['wr_content'], $html);
+      $list['content'] = $this->conv_content($list['wr_content'], $html);
     }
 
     $list['comment_cnt'] = '';
@@ -908,7 +919,7 @@ class Commonlib {
     $tmp_name = $this->get_text($this->cut_str($list['wr_name'], $config['cf_cut_name'])); // 설정된 자리수 만큼만 이름 출력
     $tmp_name2 = $this->cut_str($list['wr_name'], $config['cf_cut_name']); // 설정된 자리수 만큼만 이름 출력
     if ($board['bo_use_sideview'])
-      $list['name'] = $this->get_sideview($list['mb_id'], $tmp_name2, $list['wr_email'], $list['wr_homepage']);
+      $list['name'] = $this->get_sideview($list['mb_id'], $tmp_name2, $list['wr_email'], $list['wr_homepage'], $board['bo_table']);
     else
       $list['name'] = '<span class="'.($list['mb_id']?'sv_member':'sv_guest').'">'.$tmp_name.'</span>';
 
@@ -953,12 +964,13 @@ class Commonlib {
     if ($board['bo_use_list_file'] || ($list['wr_file'] && $subject_len == 255) /* view 인 경우 */) {
       $list['file'] = $this->get_file($board['bo_table'], $list['wr_id']);
     } else {
-      $list['file']['count'] = $list['wr_file'];
+      // $list['file']['count'] = $list['wr_file'];
     }
 
     if ($list['file']['count'])
       $list['icon_file'] = '<i class="fa fa-download" aria-hidden="true"></i> ';
-
+    
+    $list['thumb'] = $this->get_list_thumbnail($board['bo_table'], $list['wr_id'], $board['bo_gallery_width'], $board['bo_gallery_height'], false, true);
     return $list;
   }
   // get_list 의 alias
@@ -1720,7 +1732,7 @@ class Commonlib {
     run_event('delete_editor_thumbnail_before', $contents);
 
     // $contents 중 img 태그 추출
-    $matchs = get_editor_image($contents, false);
+    $matchs = $this->get_editor_image($contents, false);
 
     if(!$matchs)
       return;

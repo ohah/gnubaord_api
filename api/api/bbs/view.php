@@ -15,7 +15,7 @@ trait view {
     $config = $this->config;
     $board = $this->get_board_db($bo_table);
     $is_admin = $this->is_admin;
-    $is_guest = $this->$is_guest;
+    $is_guest = $this->is_guest;
     $is_member = $this->is_member;
     $qstr = '';
     foreach ($this->qstr as $key => $value) {
@@ -95,11 +95,11 @@ trait view {
     if (($member['mb_id'] && ($member['mb_id'] === $write['mb_id'])) || $is_admin) {
       $update_href = $this->short_url_clean(G5_BBS_URL.'/write.php?w=u&bo_table='.$bo_table.'&wr_id='.$wr_id.'&page='.$page.$qstr);
       $this->set_session('ss_delete_token', $token = uniqid(time()));
-      $delete_href = G5_BBS_URL.'/delete.php?bo_table='.$bo_table.'&wr_id='.$wr_id.'&token='.$token.'&page='.$page.urldecode($qstr);
+      $delete_href = 'bo_table='.$bo_table.'&wr_id='.$wr_id.'&token='.$token.'&page='.$page.urldecode($qstr);
     }
     else if (!$write['mb_id']) { // 회원이 쓴 글이 아니라면
       $update_href = G5_BBS_URL.'/write?w=u&bo_table='.$bo_table.'&wr_id='.$wr_id.'&page='.$page.$qstr;
-      $delete_href = G5_BBS_URL.'/delete?w=d&bo_table='.$bo_table.'&wr_id='.$wr_id.'&page='.$page.$qstr;
+      $delete_href = 'w=d&bo_table='.$bo_table.'&wr_id='.$wr_id.'&page='.$page.$qstr;
     }
 
     // 최고, 그룹관리자라면 글 복사, 이동 가능

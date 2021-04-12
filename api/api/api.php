@@ -237,6 +237,22 @@ class Gnuboard_api extends commonlib {
     $res = $this->sql_query("SELECT * FROM {$write_table} WHERE wr_id = ?", [$wr_id]);
     return json_encode($this->unset_data($res), JSON_UNESCAPED_UNICODE);
   }
+  public function get_visit() {
+    global $g5;
+    header("Content-Type: application/json");
+    $res = $this->sql_fetch("SELECT cf_visit FROM {$g5['config_table']} LIMIT 0, 1");
+    $visit = str_replace('오늘', 'today', $res['cf_visit']);
+    $visit = str_replace('어제', 'yesterday', $visit);
+    $visit = str_replace('최대', 'max', $visit);
+    $visit = str_replace('전체', 'all', $visit);
+    $visit = explode(",",$visit);
+    $result = array();
+    foreach ($visit as $key => $value) {
+      $r = explode(":",$value);
+      $result[$r[0]] = $r[1];
+    }
+    return $this->data_encode($result);
+  }
 }
 /*
   

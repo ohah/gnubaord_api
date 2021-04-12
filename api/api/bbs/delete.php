@@ -23,13 +23,13 @@ trait delete {
     }
 
     $wr_password = $_POST['wr_password'] ? $_POST['wr_password'] : '';
-
+    $token = $_POST['token'] ? $_POST['token'] : '';
 
     $delete_token = $this->get_session('ss_delete_token');
     $this->set_session('ss_delete_token', '');
 
     if (!($token && $delete_token == $token)) {
-      $this->alert('토큰 에러로 삭제 불가합니다.');
+      $this->alert('토큰 에러로 삭제 불가합니다.'.$token);
     }
 
     //$wr = $this->sql_fetch(" select * from $write_table where wr_id = '$wr_id' ");
@@ -87,8 +87,8 @@ trait delete {
 
     // 나라오름님 수정 : 원글과 코멘트수가 정상적으로 업데이트 되지 않는 오류를 잡아 주셨습니다.
     //$sql = " select wr_id, mb_id, wr_comment from $write_table where wr_parent = '$write[wr_id]' order by wr_id ";
-    $sql = " select wr_id, mb_id, wr_is_comment, wr_content from $write_table where wr_parent = ? order by wr_id ";
-    $result = $this->sql_query($sql, [$write['wr_id']]);
+    $sql = " select wr_id, mb_id, wr_is_comment, wr_content from $write_table where wr_parent = '{$write['wr_id']}' order by wr_id ";
+    $result = $this->sql_query($sql);
     for($i=0;$i<count($result);$i++) {
       $row = $result[$i];
       // 원글이라면
@@ -98,13 +98,13 @@ trait delete {
           $this->insert_point($row['mb_id'], $board['bo_write_point'] * (-1), "{$board['bo_subject']} {$row['wr_id']} 글삭제");
 
         // 업로드된 파일이 있다면 파일삭제
-        $sql2 = " select * from {$g5['board_file_table']} where bo_table = ? and wr_id = ?";
-        $result2 = $this->sql_query($sql2, [$bo_table, $row['wr_id']]);
+        $sql2 = " select * from {$g5['board_file_table']} where bo_table = '$bo_table' and wr_id = '{$row['wr_id']}' ";
+        $result2 = $this->sql_query($sql2);
         for($k=0;$k<count($result2);$k++) {
           $row2 = $result[$k];
           $delete_file = run_replace('delete_file_path', G5_DATA_PATH.'/file/'.$bo_table.'/'.str_replace('../', '', $row2['bf_file']), $row2);
           if( file_exists($delete_file) ){
-              @unlink($delete_file);
+            @unlink($delete_file);
           }
           // 썸네일삭제
           if(preg_match("/\.({$config['cf_image_extension']})$/i", $row2['bf_file'])) {
@@ -116,7 +116,7 @@ trait delete {
         $this->delete_editor_thumbnail($row['wr_content']);
 
         // 파일테이블 행 삭제
-        $this->sql_query("delete from {$g5['board_file_table']} where bo_table = ? and wr_id = ?", [$bo_table, $row['wr_id']]);
+        $this->sql_query(" delete from {$g5['board_file_table']} where bo_table = '$bo_table' and wr_id = '{$row['wr_id']}' ");
 
         $count_write++;
       } else {
@@ -130,33 +130,26 @@ trait delete {
     }
 
     // 게시글 삭제
-    $this->sql_query("delete from $write_table where wr_parent = ?", [$write['wr_id']]);
+    $this->sql_query("DELETE FROM {$write_table} WHERE wr_parent = '{$write['wr_id']}' ");
 
     // 최근게시물 삭제
-    $this->sql_query("delete from {$g5['board_new_table']} where bo_table = ? and wr_parent = ?", [$bo_table, $write['wr_id']]);
+    $this->sql_query(" delete from {$g5['board_new_table']} where bo_table = '$bo_table' and wr_parent = '{$write['wr_id']}' ");
 
     // 스크랩 삭제
-    $this->sql_query("delete from {$g5['scrap_table']} where bo_table = ? and wr_id = ?",[$bo_table, $write['wr_id']]);
+    $this->sql_query(" delete from {$g5['scrap_table']} where bo_table = '$bo_table' and wr_id = '{$write['wr_id']}' ");
 
-    /*
-    // 공지사항 삭제
-    $notice_array = explode("\n", trim($board['bo_notice']));
-    $bo_notice = "";
-    for ($k=0; $k<count($notice_array); $k++)
-        if ((int)$write[wr_id] != (int)$notice_array[$k])
-            $bo_notice .= $notice_array[$k] . "\n";
-    $bo_notice = trim($bo_notice);
-    */
     $bo_notice = $this->board_notice($board['bo_notice'], $write['wr_id']);
-    $this->sql_query("update {$g5['board_table']} set bo_notice = ? where bo_table = ?", [$bo_notice, $bo_table]);
+    $this->sql_query(" update {$g5['board_table']} set bo_notice = '{$bo_notice}' where bo_table = '{$bo_table}' ");
 
     // 글숫자 감소
     if ($count_write > 0 || $count_comment > 0)
-      $this->sql_query(" update {$g5['board_table']} set bo_count_write = bo_count_write - '$count_write', bo_count_comment = bo_count_comment - '$count_comment' where bo_table = ?", [$bo_table]);
+      $this->sql_query(" update {$g5['board_table']} set bo_count_write = bo_count_write - '{$count_write}', bo_count_comment = bo_count_comment - '{$count_comment}' where bo_table = '{$bo_table}' ");
 
-    delete_cache_latest($bo_table);
+    $this->delete_cache_latest($bo_table);
 
     run_event('bbs_delete', $write, $board);
+    $result = array();
+    return $this->data_encode($result);
   }
   public function delete_comment($bo_table, $comment_id) {
     global $g5;
@@ -304,8 +297,8 @@ trait delete {
 
     // 거꾸로 읽는 이유는 답변글부터 삭제가 되어야 하기 때문임
     for ($i=$chk_count-1; $i>=0; $i--) {
-      $write = $this->sql_fetch(" select * from $write_table where wr_id = ?", $tmp_array[$i]);
-
+      $write = $this->sql_fetch(" select * from $write_table where wr_id = '{$tmp_array[$i]}'");
+      
       if ($is_admin == 'super') {// 최고관리자 통과
         ;
       } else if ($is_admin == 'group') {// 그룹관리자
@@ -334,62 +327,64 @@ trait delete {
           continue;   // 나머지는 삭제 불가
         }
 
-        $len = strlen($write['wr_reply']);
-        if ($len < 0) $len = 0;
-        $reply = substr($write['wr_reply'], 0, $len);
+      }
 
-        // 원글만 구한다.
-        $sql = " select count(*) as cnt from $write_table
-                    where wr_reply like ?
-                    and wr_id <> ?
-                    and wr_num = ?
-                    and wr_is_comment = ?";
-        $row = $this->sql_fetch($sql, $reply.'%', $write['wr_id'], $write['wr_num'], 0);
-        if ($row['cnt'])
-          continue;
+      $len = strlen($write['wr_reply']);
+      if ($len < 0) $len = 0;
+      $reply = substr($write['wr_reply'], 0, $len);
 
-        // 나라오름님 수정 : 원글과 코멘트수가 정상적으로 업데이트 되지 않는 오류를 잡아 주셨습니다.
-        //$sql = " select wr_id, mb_id, wr_comment from {$write_table} where wr_parent = '{$write[wr_id]}' order by wr_id ";
-        $sql = " select wr_id, mb_id, wr_is_comment, wr_content from $write_table where wr_parent = ? order by wr_id ";
-        $result = $this->sql_query($sql, [$write['wr_id']]);
-        for($j=0;$j<count($result);$j++) {
-          $row = $result[$j];
-          // 원글이라면
-          if (!$row['wr_is_comment']) {
-            // 원글 포인트 삭제
-            if (!$this->delete_point($row['mb_id'], $bo_table, $row['wr_id'], '쓰기'))
-              $this->insert_point($row['mb_id'], $board['bo_write_point'] * (-1), "{$board['bo_subject']} {$row['wr_id']} 글 삭제");
+      // 원글만 구한다.
+      $sql = " select count(*) as cnt from $write_table
+              where wr_reply like '$reply%'
+              and wr_id <> '{$write['wr_id']}'
+              and wr_num = '{$write['wr_num']}'
+              and wr_is_comment = 0 ";
+      $row = $this->sql_fetch($sql);
+      if ($row['cnt'])
+        continue;
 
-            // 업로드된 파일이 있다면
-            $sql2 = " select * from {$g5['board_file_table']} where bo_table = ? and wr_id = ?";
-            $result2 = $this->sql_query($sql2, [$bo_table, $row['wr_id']]);
-            for($k=0;$k<count($result);$k++) {
-              $row2 = $result2[$k];
-              // 파일삭제
-              $delete_file = run_replace('delete_file_path', G5_DATA_PATH.'/file/'.$bo_table.'/'.str_replace('../', '',$row2['bf_file']), $row2);
-              if( file_exists($delete_file) ){
-                @unlink($delete_file);
-              }
+      // 나라오름님 수정 : 원글과 코멘트수가 정상적으로 업데이트 되지 않는 오류를 잡아 주셨습니다.
+      //$sql = " select wr_id, mb_id, wr_comment from {$write_table} where wr_parent = '{$write[wr_id]}' order by wr_id ";
+      $sql = " select wr_id, mb_id, wr_is_comment, wr_content from $write_table where wr_parent = ? order by wr_id ";
+      $result = $this->sql_query($sql, [$write['wr_id']]);
+      for($j=0;$j<count($result);$j++) {
+        $row = $result[$j];
+        // 원글이라면
+        if (!$row['wr_is_comment']) {
+          // 원글 포인트 삭제
+          if (!$this->delete_point($row['mb_id'], $bo_table, $row['wr_id'], '쓰기'))
+            $this->insert_point($row['mb_id'], $board['bo_write_point'] * (-1), "{$board['bo_subject']} {$row['wr_id']} 글 삭제");
 
-              // 썸네일삭제
-              if(preg_match("/\.({$config['cf_image_extension']})$/i", $row2['bf_file'])) {
-                $this->delete_board_thumbnail($bo_table, $row2['bf_file']);
-              }
+          // 업로드된 파일이 있다면
+          $sql2 = " select * from {$g5['board_file_table']} where bo_table = ? and wr_id = ?";
+          $result2 = $this->sql_query($sql2, [$bo_table, $row['wr_id']]);
+          for($k=0;$k<count($result);$k++) {
+            $row2 = $result2[$k];
+            // 파일삭제
+            $delete_file = run_replace('delete_file_path', G5_DATA_PATH.'/file/'.$bo_table.'/'.str_replace('../', '',$row2['bf_file']), $row2);
+            if( file_exists($delete_file) ){
+              @unlink($delete_file);
             }
-            // 에디터 썸네일 삭제
-            $this->delete_editor_thumbnail($row['wr_content']);
-            // 파일테이블 행 삭제
-            $this->sql_query(" delete from {$g5['board_file_table']} where bo_table = ? and wr_id = ?", [$bo_table, $row['wr_id']]);
 
-            $count_write++;
-          } else {
-            // 코멘트 포인트 삭제
-            if (!$this->delete_point($row['mb_id'], $bo_table, $row['wr_id'], '댓글'))
-              $this->insert_point($row['mb_id'], $board['bo_comment_point'] * (-1), "{$board['bo_subject']} {$write['wr_id']}-{$row['wr_id']} 댓글삭제");
-
-            $count_comment++;
+            // 썸네일삭제
+            if(preg_match("/\.({$config['cf_image_extension']})$/i", $row2['bf_file'])) {
+              $this->delete_board_thumbnail($bo_table, $row2['bf_file']);
+            }
           }
+          // 에디터 썸네일 삭제
+          $this->delete_editor_thumbnail($row['wr_content']);
+          // 파일테이블 행 삭제
+          $this->sql_query(" delete from {$g5['board_file_table']} where bo_table = ? and wr_id = ?", [$bo_table, $row['wr_id']]);
+
+          $count_write++;
+        } else {
+          // 코멘트 포인트 삭제
+          if (!$this->delete_point($row['mb_id'], $bo_table, $row['wr_id'], '댓글'))
+            $this->insert_point($row['mb_id'], $board['bo_comment_point'] * (-1), "{$board['bo_subject']} {$write['wr_id']}-{$row['wr_id']} 댓글삭제");
+
+          $count_comment++;
         }
+        
 
         // 게시글 삭제
         $this->sql_query(" delete from $write_table where wr_parent = ?", [$write['wr_id']]);
@@ -420,7 +415,7 @@ trait delete {
     }
 
     // 4.11
-    delete_cache_latest($bo_table);
+    $this->delete_cache_latest($bo_table);
 
     run_event('bbs_delete_all', $tmp_array, $board);
 

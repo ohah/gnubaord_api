@@ -11,6 +11,7 @@ trait write {
     $is_admin = $this->is_admin;
     $is_guest = $this->is_guest;
     $is_member = $this->is_member;
+    $config = $this->config;
     $board = $this->get_board_db($bo_table);
     $group = $this->get_group($board['gr_id']);
     $wr_password = $this->getPostData()['wr_password'] ? $this->getPostData()['wr_password'] : '';
@@ -276,6 +277,7 @@ trait write {
     $is_link = false;
     if ($member['mb_level'] >= $board['bo_link_level']) {
       $is_link = true;
+      $link_count = G5_LINK_COUNT;
     }
 
     $is_file = false;
@@ -315,7 +317,9 @@ trait write {
         if (!($is_member && $member['mb_id'] === $write['mb_id'])) {
           if (!$this->check_password($wr_password, $write['wr_password'])) {
             $is_wrong = run_replace('invalid_password', false, 'write', $write);
-            if(!$is_wrong) $this->alert('비밀번호가 틀립니다.');
+            $ss_name = 'ss_secret_'.$bo_table.'_'.$write['wr_num'];
+            $pass = $this->get_session($ss_name, TRUE);
+            if(!$is_wrong && !$pass) $this->alert('비밀번호가 틀립니다.');
           }
         }
       }
@@ -348,7 +352,7 @@ trait write {
 
       for($i=0;$i<$file_count;$i++){
         if(! isset($file[$i])) {
-          $file[$i] = array('file'=>null, 'source'=>null, 'size'=>null);
+          // $file[$i] = array('file'=>null, 'source'=>null, 'size'=>null);
         }
       }
 
@@ -431,7 +435,7 @@ trait write {
     $uid = $this->get_uniqid();
     $arr = get_defined_vars();
     $filter = [
-      'uid', 'w', 'bo_table', 'wr_id', 'sca', 'sfl',' stx', 'stp', 'sst', 'sod', 'page', 'file_count',
+      'uid', 'w', 'bo_table', 'wr_id', 'sca', 'sfl',' stx', 'stp', 'sst', 'sod', 'page', 'file_count', 'ca_name', 'link_count', 
       'is_notice', 'is_html', 'is_secret', 'is_mail', 'is_dhtml_editor', 'is_category', 'upload_max_filesize', 
       'is_name', 'is_password', 'is_email', 'is_homepage', 'option', 'is_member', 'editor_content_js', 'autosave_count',
       'write_min', 'write_max', 'editor_html', 'is_link', 'is_file', 'is_file_content', 'file', 'subject', 

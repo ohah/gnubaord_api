@@ -10,10 +10,14 @@ trait bbs_list {
     $spt = $this->qstr['spt'];
     $page = $this->qstr['page'];
     $write_table = $g5['write_prefix'].$bo_table;
-    $res = $this->sql_query("SELECT * FROM {$write_table}");
     $member = $this->member;
     $config = $this->config;
+    $is_admin = $this->is_admin;
+    $is_guest = $this->is_guest;
+    $is_member = $this->is_member;
+    $group = $this->group;
     $board = $this->get_board_db($bo_table);
+    if ($member['mb_id'] && ($is_admin === 'super' || $group['gr_admin'] === $member['mb_id'])) $admin_href = G5_ADMIN_URL.'/board_form.php?w=u&amp;bo_table='.$bo_table;
     $qstr = '';
     foreach ($this->qstr as $key => $value) {
       if($value) $qstr .= $key.'='.$value;
@@ -34,9 +38,9 @@ trait bbs_list {
       for ($i=0; $i<count($categories); $i++) {
         $k = $i+1;
         $category = trim($categories[$i]);
-        if ($category=='') continue;
+        if ($category == '') continue;
         $category_option[$k]['url'] = $this->get_pretty_url($bo_table,'','sca='.urlencode($category));        
-        if ($category==$sca) { // 현재 선택된 카테고리라면
+        if ($category == urldecode($sca)) { // 현재 선택된 카테고리라면
           $category_option[$k]['active'] = true;
         }
         $category_option[$k]['name'] = $category;
@@ -213,7 +217,7 @@ trait bbs_list {
 
         $list[$i] = $this->get_list($row, $board, $board_skin_url, $this->is_mobile() ? $board['bo_mobile_subject_len'] : $board['bo_subject_len']);
         if (strstr($sfl, 'subject')) {
-          $list[$i]['subject'] = search_font($stx, $list[$i]['subject']);
+          $list[$i]['subject'] = $this->search_font($stx, $list[$i]['subject']);
         }
         $list[$i]['is_notice'] = false;
         $list_num = $total_count - ($page - 1) * $list_page_rows - $notice_count;
@@ -280,7 +284,7 @@ trait bbs_list {
     [bo_use_list_file] => 0
     [bo_use_list_content] => 0
     */
-    $result = [];
+    $result['page_rows'] = $page_rows;
     $result['write_pages'] = $write_pages;
     $result['total_page'] = $total_page;
     $result['total_count'] = $total_count;
@@ -290,6 +294,7 @@ trait bbs_list {
     $result['td_width'] = $td_width;
     $result['list'] = $this->unset_data($list);
     $result['qstr'] = $qstr;
+    $result['category_option'] = $category_option;
     $result['is_category'] = $is_category;
     $result['admin_href'] = $admin_href;
     $result['rss_href'] = $rss_href;

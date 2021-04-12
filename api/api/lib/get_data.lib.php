@@ -132,31 +132,107 @@ trait get_datalib {
   // 게시판 첨부파일 테이블에서 하나의 행을 읽음
   public function get_board_file_db($bo_table, $wr_id, $fields='*', $add_where='', $is_cache=false) {
     global $g5;
-    return $this->sql_fetch("SELECT $fields FROM {$g5['board_file_table']}
-    WHERE bo_table = ? AND wr_id = ? $add_where ORDER BY bf_no LIMIT 0, 1", [$bo_table, $wr_id]);
+
+    static $cache = array();
+
+    $wr_id = (int) $wr_id;
+    $key = md5($bo_table.'|'.$wr_id.$fields.$add_where);
+
+    if( $is_cache && isset($cache[$key]) ){
+        return $cache[$key];
+    }
+
+    $sql = " select $fields from {$g5['board_file_table']}
+                where bo_table = '$bo_table' and wr_id = '$wr_id' $add_where order by bf_no limit 0, 1 ";
+
+    $cache[$key] = $this->sql_fetch($sql);
+
+    return $cache[$key];
   }
 
   public function get_poll_db($po_id, $is_cache=false){
     global $g5;
-    return $this->sql_fetch("SELECT * FROM {$g5['poll_table']} WHERE po_id = ?",[$po_id]);
+    static $cache = array();
+
+    $po_id = (int) $po_id;
+    $key = md5($po_id);
+
+    if( $is_cache && isset($cache[$key]) ){
+      return $cache[$key];
+    }
+
+    $sql = " select * from {$g5['poll_table']} where po_id = '{$po_id}' ";
+
+    $cache[$key] = $this->sql_fetch($sql);
+
+    return $cache[$key];
   }
 
   public function get_point_db($po_id, $is_cache=false){
     global $g5;
-    return $this->sql_fetch("SELECT * FROM {$g5['point_table']} WHERE po_id = ?", [$po_id]);
+    static $cache = array();
+
+    $po_id = (int) $po_id;
+    $key = md5($po_id);
+
+    if( $is_cache && isset($cache[$key]) ){
+      return $cache[$key];
+    }
+
+    $sql = " select * from {$g5['point_table']} where po_id = '{$po_id}' ";
+
+    $cache[$key] = $this->sql_fetch($sql);
+
+    return $cache[$key];
   }
 
   public function get_mail_content_db($ma_id, $is_cache=false){
     global $g5;
-    return $this->sql_fetch("SELECT * FROM {$g5['mail_table']} WHERE ma_id = ?", [$ma_id]);
+
+    static $cache = array();
+
+    $ma_id = (int) $ma_id;
+    $key = md5($ma_id);
+
+    if( $is_cache && isset($cache[$key]) ){
+        return $cache[$key];
+    }
+
+    $sql = " select * from {$g5['mail_table']} where ma_id = '{$ma_id}' ";
+
+    $cache[$key] = $this->sql_fetch($sql);
+
+    return $cache[$key];
   }
 
   public function get_qacontent_db($qa_id, $is_cache=false){
     global $g5;
-    return $this->sql_fetch("SELECT * FROM {$g5['qa_content_table']} WHERE qa_id = ?", [$qa_id]);
+
+    static $cache = array();
+
+    $qa_id = (int) $qa_id;
+    $key = md5($qa_id);
+
+    if( $is_cache && isset($cache[$key]) ){
+        return $cache[$key];
+    }
+
+    $sql = " select * from {$g5['qa_content_table']} where qa_id = '{$qa_id}' ";
+
+    $cache[$key] = $this->sql_fetch($sql);
+
+    return $cache[$key];
   }
 
   public function get_thumbnail_find_cache($bo_table, $wr_id, $wr_key){
+    global $g5;
+    if( $cache_content = g5_latest_cache_data($bo_table, array(), $wr_id) ){
+      if( $wr_key === 'content' ){
+        return $cache_content;
+      } else if ( $wr_key === 'file' && isset($cache_content['first_file_thumb']) ){
+        return $cache_content['first_file_thumb'];
+      }
+    }
 
     if( $wr_key === 'content' ){
       $write_table = $g5['write_prefix'].$bo_table;
@@ -298,17 +374,20 @@ trait get_datalib {
   public function get_memo_not_read($mb_id, $add_where='') {
     global $g5;
 
-    $row = $this->sql_fetch("SELECT count(*) as cnt FROM {$g5['memo_table']} WHERE me_recv_mb_id = ? AND me_type= ? AND me_read_datetime LIKE ? $add_where", [$mb_id, 'recv', '0%']);
+    $sql = " SELECT count(*) as cnt FROM {$g5['memo_table']} WHERE me_recv_mb_id = '$mb_id' and me_type= 'recv' and me_read_datetime like '0%' $add_where ";
+    $row = $this->sql_fetch($sql);
 
-    return $row['cnt'];
+    return isset($row['cnt']) ? $row['cnt'] : 0;
   }
 
   public function get_scrap_totals($mb_id=''){
     global $g5;
-    $add_where = $mb_id ? " and mb_id = ? " : '';
 
-    $row = $this->sql_fetch("SELECT count(*) as cnt from {$g5['scrap_table']} where 1=1 $add_where", [$mb_id]);
+    $add_where = $mb_id ? " and mb_id = '$mb_id' " : '';
 
-    return $row['cnt'];
+    $sql = " select count(*) as cnt from {$g5['scrap_table']} where 1=1 $add_where";
+    $row = $this->sql_fetch($sql);
+
+    return isset($row['cnt']) ? $row['cnt'] : 0;
   }
 }

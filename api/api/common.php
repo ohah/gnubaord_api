@@ -1,6 +1,7 @@
 <?php 
 //echo API_PATH;
 require API_PATH.'/../jwt/autoload.php';
+
 use Firebase\JWT\JWT;
 trait common {
   public $dsn = "mysql:host=".G5_MYSQL_HOST.";port=3306;dbname=".G5_MYSQL_DB.";charset=utf8";
@@ -193,6 +194,14 @@ trait common {
     } else {
       $page = '';
     }
+
+    if (isset($query['onetable'])) { // 리스트 페이지
+      $onetable = $query['onetable'];
+      if ($onetable)
+        $this->qstr['onetable'] = urlencode($onetable);
+    } else {
+      $onetable = '';
+    }
     
     if (isset($query['w'])) {
       $w = substr($w, 0, 2);
@@ -205,6 +214,7 @@ trait common {
     } else {
       $wr_id = 0;
     }
+    
 
     if (isset($query['bo_table']) && ! is_array($query['bo_table'])) {
       $bo_table = preg_replace('/[^a-z0-9_]/i', '', trim($query['bo_table']));

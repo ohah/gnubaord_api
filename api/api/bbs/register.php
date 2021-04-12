@@ -2,6 +2,7 @@
 trait register {
   public function register_form() {
     global $g5;
+    $_POST = isset($_POST['agree']) ? $_POST : $this->getPostData();
     @extract($_POST);
     $member = $this->member;
     $config = $this->config;
@@ -9,7 +10,7 @@ trait register {
     $is_guest = $this->$is_guest;
     $is_member = $this->is_member;
     run_event('register_form_before');
-
+    
     // 불법접근을 막도록 토큰생성
     $token = md5(uniqid(rand(), true));
     $this->set_session("ss_token", $token);
@@ -221,14 +222,14 @@ trait register {
     }
     $result['G5_SERVER_TIME'] = G5_SERVER_TIME;
     $result['captcha_html'] = $this->captcha_html();
-    return $result;
+    return $this->data_encode($result);
   }
   public function register () {
     $config = $this->config;
     $this->set_session("ss_mb_reg", "");
     $result = array();
     $result['cf_stipulation'] = $this->get_text($config['cf_stipulation']);
-    return $result;
+    return $this->data_encode($result);
   }
   public function register_form_update() {
     global $g5;

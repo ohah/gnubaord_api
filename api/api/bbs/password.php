@@ -75,8 +75,13 @@ trait password {
     $_POST = $this->getPostData();
     $wr_password = $_POST['wr_password'] ? $_POST['wr_password'] : '';
     $write_table = $g5['write_prefix'].$bo_table;
+    $is_admin = $this->is_admin;
+    $member = $this->member;
     if($w == 's') {
       $wr = $this->get_write($write_table, $wr_id);
+      if($wr['mb_id'] === $member['mb_id'] && $member['mb_id'] !== '' || $is_admin) {
+        $this->alert('success');
+      }
       if( !$wr['wr_password'] && $wr['mb_id'] ){
         if ( $mb = $this->get_member($wr['mb_id']) ){
           $wr['wr_password'] = $mb['mb_password'];

@@ -52,12 +52,36 @@ $router->match('GET', '/faqsgroup/{fm_id}', function() use ($api) {
 $router->match('GET', '/groups', function() use ($api){
   echo json_encode($api->get_group($fa_id), JSON_UNESCAPED_UNICODE);
 });
+$router->match('GET', '/visit', function() use ($api){
+  echo $api->get_visit();
+});
 $router->match('GET', '/members', function() use ($api){
   echo $api->get_members();
 });
 $router->mount('/member', function() use ($router, $api) {
   $router->get('/{mb_id}/scraps', function($mb_id) use ($api) {
     echo $api->get_scrap($mb_id);
+  });
+  $router->match('GET','/scrap', function() use ($api) {
+    echo $api->scrap();
+  });
+  $router->match('GET','/memo', function() use ($api) {
+    echo $api->memo();
+  });
+  $router->match('GET','/memo_form', function() use ($api) {
+    echo $api->memo_form();
+  });
+  $router->match('POST|PUT','/memo_form_update', function() use ($api) {
+    echo $api->memo_form_update();
+  });
+  $router->match('POST|DELETE','/memo_delete/{me_id}', function($me_id) use ($api) {
+    echo $api->memo_delete($me_id);
+  });
+  $router->match('POST|DELETE','/scrap_delete/{ms_id}', function($ms_id) use ($api) {
+    echo $api->scrap_delete($ms_id);
+  });
+  $router->match('POST|PUT','/scrap_update/{bo_table}/{wr_id}', function($bo_table, $wr_id) use ($api) {
+    echo $api->scrap_popin_update($bo_table, $wr_id);
   });
   $router->get('/{mb_id}/points', function($mb_id) use ($api) {
     echo $api->get_point($mb_id);
@@ -74,6 +98,18 @@ $router->match('GET', '/boards', function() use ($api){
  */
 $router->match('GET', '/search', function() use ($api) { //검색
   echo $api->search();
+});
+/**
+ * @param member profile point;
+ */
+$router->match('GET', '/point', function() use ($api) { //포인트
+  echo $api->point();
+});
+/**
+ * @param move "copy | move";
+ */
+$router->match('POST|PUT', '/move/{sw}', function($sw) use ($api) { //검색
+  echo $api->move($sw);
 });
 $router->mount('/board', function() use ($router, $api) {
   $router->match('GET', '/new_articles', function() use ($api){
@@ -134,6 +170,14 @@ $router->mount('/board', function() use ($router, $api) {
     echo $api->get_views($bo_table, $wr_id);
   });
   /**
+   * 관리자만 가능
+   * @param bo_table address;
+   * @param POST chk_wr_id;
+   */
+  $router->match('DELETE|POST', '/{bo_table}/all', function($bo_table) use ($api) { //삭제 
+    echo $api->delete_all($bo_table);
+  });
+  /**
    * 작성자, 관리자만 가능
    * @param bo_table address;
    * @param wr_id address;
@@ -146,17 +190,9 @@ $router->mount('/board', function() use ($router, $api) {
     $api->board_chk($bo_table);
     echo $api->get_bbs_list($bo_table);
   });
-  /**
-   * 관리자만 가능
-   * @param bo_table address;
-   * @param POST chk_wr_id;
-   */
-  $router->match('DELETE|POST', '/{bo_table}/all', function($bo_table, $wr_id) use ($api) { //삭제 
-    echo $api->delete_all($bo_table, $wr_id);
-  });
 });
 
-/**
+/**cc
  * 코멘트 쓰기
  * @param write_comment_update(코멘트수정(cu))
  * @param write_comment_update(코멘트쓰기(c))
@@ -248,10 +284,10 @@ $router->match('GET', '/qa/{qa_id}', function($qa_id) use ($api){
  * @param _POST post;
  */
 $router->match('POST|PUT', '/register', function() use ($api) {
-  echo json_encode($api->register(), JSON_UNESCAPED_UNICODE);
+  echo $api->register();
 });
 $router->match('POST|PUT', '/register_form', function() use ($api) {
-  echo json_encode($api->register_form(), JSON_UNESCAPED_UNICODE);
+  echo $api->register_form();
 });
 $router->match('POST|PUT', '/register_form_update', function() use ($api) {
   echo json_encode($api->register_form_update(), JSON_UNESCAPED_UNICODE);

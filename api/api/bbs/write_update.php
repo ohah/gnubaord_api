@@ -3,7 +3,7 @@ trait write_update{
   public function write_update($bo_table, $wr_id = null) {
     global $g5;
     extract($_POST);
-    $member = $this->$member;
+    $member = $this->member;
     $write_table = $g5['write_prefix'].$bo_table;
     $board = $this->sql_fetch("SELECT count(*) cnt FROM {$g5['board_table']} WHERE bo_table = ?",[$bo_table]); //보드 설정
     if($board['cnt'] == 0) {
@@ -438,7 +438,7 @@ trait write_update{
         if (isset($_POST['bf_file_del'][$i]) && $_POST['bf_file_del'][$i]) {
           $upload[$i]['del_check'] = true;
 
-          $row = $this->sql_fetch("SELECT * FROM {$g5['board_file_table']} WHERE bo_table = ? AND wr_id = ? AND bf_no = ?". [$bo_table, $wr_id, $i]);
+          $row = $this->sql_fetch(" select * from {$g5['board_file_table']} where bo_table = '{$bo_table}' and wr_id = '{$wr_id}' and bf_no = '{$i}' ");
 
           $delete_file = run_replace('delete_file_path', G5_DATA_PATH.'/file/'.$bo_table.'/'.str_replace('../', '', $row['bf_file']), $row);
           if( file_exists($delete_file) ){
@@ -495,7 +495,7 @@ trait write_update{
           // 4.00.11 - 글답변에서 파일 업로드시 원글의 파일이 삭제되는 오류를 수정
           if ($w == 'u') {
             // 존재하는 파일이 있다면 삭제합니다.
-            $row = $this->sql_fetch("SELECT * FROM {$g5['board_file_table']} WHERE bo_table = '$bo_table' AND wr_id = '$wr_id' AND bf_no = '$i' ");
+            $row = $this->sql_fetch("SELECT * FROM {$g5['board_file_table']} WHERE bo_table = '{$bo_table}' AND wr_id = '{$wr_id}' AND bf_no = '{$i}' ");
             
             if(isset($row['bf_file']) && $row['bf_file']){
               $delete_file = run_replace('delete_file_path', G5_DATA_PATH.'/file/'.$bo_table.'/'.str_replace('../', '', $row['bf_file']), $row);
@@ -649,10 +649,10 @@ trait write_update{
 
       $link_url = $this->get_pretty_url($bo_table, $wr_id, $qstr);
 
-      ob_start();
-      include_once ('./write_update_mail.php');
-      $content = ob_get_contents();
-      ob_end_clean();
+      // ob_start();
+      // include_once ('./write_update_mail.php');
+      // $content = ob_get_contents();
+      // ob_end_clean();
 
       $array_email = array();
       // 게시판관리자에게 보내는 메일
